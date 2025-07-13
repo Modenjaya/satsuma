@@ -13,7 +13,7 @@ load_dotenv()
 
 # Configuration files
 CONFIG_FILE = "satsuma_config.json"
-MAIN_CONFIG_FILE = "config.json" # File konfigurasi utama untuk alamat kontrak
+MAIN_CONFIG_FILE = "config.json" 
 
 # Terminal Colors
 class Colors:
@@ -116,7 +116,7 @@ SWAP_ROUTER_ABI = [
                 "components": [
                     {"name": "tokenIn", "type": "address"},
                     {"name": "tokenOut", "type": "address"},
-                    {"name": "deployer", "type": "address"}, # Ini bisa jadi `sender` atau `feeRecipient`
+                    {"name": "deployer", "type": "address"},
                     {"name": "recipient", "type": "address"},
                     {"name": "deadline", "type": "uint256"},
                     {"name": "amountIn", "type": "uint256"},
@@ -129,7 +129,7 @@ SWAP_ROUTER_ABI = [
         ],
         "name": "exactInputSingle",
         "outputs": [{"name": "amountOut", "type": "uint256"}],
-        "stateMutability": "payable", # Atau nonpayable tergantung implementasi
+        "stateMutability": "payable",
         "type": "function"
     }
 ]
@@ -139,7 +139,7 @@ LIQUIDITY_ROUTER_ABI = [
         "inputs": [
             {"name": "tokenA", "type": "address"},
             {"name": "tokenB", "type": "address"},
-            {"name": "deployer", "type": "address"}, # Ini bisa jadi `sender` atau `feeRecipient`
+            {"name": "deployer", "type": "address"},
             {"name": "recipient", "type": "address"},
             {"name": "amountADesired", "type": "uint256"},
             {"name": "amountBDesired", "type": "uint256"},
@@ -212,8 +212,6 @@ class SatsumaBot:
         self.transaction_history = []
 
     def load_config(self):
-        # Konfigurasi default. Sebaiknya ini dipisahkan ke file lain jika mau lebih dinamis.
-        # Atau biarkan Python membuatnya jika tidak ada.
         config = {
             "rpc": "https://rpc.testnet.citrea.xyz",
             "chain_id": 5115,
@@ -225,22 +223,19 @@ class SatsumaBot:
             "usdc_address": Web3.to_checksum_address("0x36c16eaC6B0Ba6c50f494914ff015fCa95B7835F"),
             "wcbtc_address": Web3.to_checksum_address("0x8d0c9d1c17ae5e40fff9be350f57840e9e66cd93"),
             "suma_address": Web3.to_checksum_address("0xdE4251dd68e1aD5865b14Dd527E54018767Af58a"),
-            # Alamat-alamat ini adalah placeholder (dummy) dan perlu diganti dengan alamat asli di Citrea Testnet
-            "vesuma_address": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"), # Ganti dengan alamat veSUMA
-            "voting_contract": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"), # Ganti dengan alamat kontrak Voting
-            "staking_contract": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"), # Ganti dengan alamat kontrak Staking
-            "gauge_address": Web3.to_checksum_address("0x0000000000000000000000000000000000000000") # Ganti dengan alamat Gauge (untuk voting)
+            "vesuma_address": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
+            "voting_contract": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
+            "staking_contract": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
+            "gauge_address": Web3.to_checksum_address("0x0000000000000000000000000000000000000000")
         }
         
         try:
-            # Mencoba membaca dari MAIN_CONFIG_FILE jika ada
             if os.path.exists(MAIN_CONFIG_FILE):
                 with open(MAIN_CONFIG_FILE, 'r') as f:
                     loaded_config = json.load(f)
-                    config.update(loaded_config) # Perbarui konfigurasi default dengan yang dimuat
+                    config.update(loaded_config)
                 log.success(f"Konfigurasi dimuat dari {MAIN_CONFIG_FILE}")
             else:
-                # Jika tidak ada, buat file dengan konfigurasi default
                 with open(MAIN_CONFIG_FILE, 'w') as f:
                     json.dump(config, f, indent=2)
                 log.warn(f"File konfigurasi '{MAIN_CONFIG_FILE}' tidak ditemukan. Membuat file baru dengan konfigurasi default.")
@@ -277,12 +272,9 @@ class SatsumaBot:
             key = input("Masukkan private key Anda (tanpa awalan 0x, tekan Enter untuk keluar): ").strip()
             if not key:
                 sys.exit(1)
-            # Opsional: Simpan ke .env jika input sukses (untuk kemudahan di masa mendatang)
-            # with open(".env", "a") as f:
-            #     f.write(f"\nPRIVATE_KEY_1={key}\n")
         
         if key.startswith('0x'):
-            key = key[2:] # Hapus awalan 0x jika ada
+            key = key[2:]
 
         try:
             account = Web3().eth.account.from_key(key)
@@ -354,7 +346,7 @@ class SatsumaBot:
             
             approve_tx = token_contract.functions.approve(spender_address, amount).build_transaction({
                 "from": account.address,
-                "gas": 100000, # Gas limit standar untuk approve
+                "gas": 100000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce,
                 "chainId": self.config["chain_id"]
@@ -364,7 +356,7 @@ class SatsumaBot:
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             log.processing(f"Menunggu konfirmasi persetujuan... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300) # Timeout 5 menit
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
             
             if receipt and receipt["status"] == 1:
                 log.success(f"Persetujuan berhasil! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
@@ -424,33 +416,30 @@ class SatsumaBot:
                 return {"success": False, "error": "Persetujuan token gagal"}
             
             nonce = approval_result["nonce"]
-            if nonce is None: # Ini bisa terjadi jika approve_token gagal sebelum mendapatkan nonce
+            if nonce is None:
                 nonce = self.w3.eth.get_transaction_count(account.address)
 
             # --- Persiapan Transaksi Swap ---
             swap_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
             
-            deadline = int(time.time()) + 300  # Deadline 5 menit dari sekarang
+            deadline = int(time.time()) + 300
 
-            # --- PENTING: Penanganan amountOutMinimum dan limitSqrtPrice ---
-            # Mengatur amountOutMinimum ke 99% dari amountIn (toleransi slippage 1%)
+            # Mengatur amountOutMinimum ke 99% dari amountIn (toleransi slippage 1%).
             # Ini lebih aman daripada 0, yang akan menerima slippage tak terbatas.
             amount_out_minimum = int(amount_in_wei * 0.99) 
             
-            # Mengatur limitSqrtPrice ke MAX_SQRT_RATIO (2**160 - 1).
-            # Ini memungkinkan swap untuk menemukan rute hingga harga maksimum.
-            # CATATAN: Ini BISA menyebabkan slippage sangat tinggi jika likuiditas tipis
-            # atau harga berubah drastis. Untuk produksi, Anda HARUS menghitung
-            # limitSqrtPrice yang spesifik dari pool's sqrtPriceX96.
-            # Namun, ini akan mengatasi error 'L' karena 0 bukan nilai yang valid.
-            limit_sqrt_price = 2**160 - 1 # Mengizinkan swap sejauh mungkin (risiko slippage tinggi)
+            # --- PERBAIKAN PENTING ---
+            # Mengatur limitSqrtPrice ke 1 (MIN_SQRT_RATIO) seperti pada transaksi yang berhasil Anda berikan.
+            # Ini memungkinkan swap untuk melintasi semua tick ke arah harga yang relevan
+            # tanpa terhenti oleh batasan harga tertentu di awal.
+            limit_sqrt_price = 1 # Nilai yang terbukti berhasil dari TX Anda!
             
             log.info(f"Parameter Swap: amountIn={amount_in_float:.6f}, amountOutMinimum={amount_out_minimum}, limitSqrtPrice={limit_sqrt_price}")
 
             swap_params = {
                 "tokenIn": token_in_address,
                 "tokenOut": token_out_address,
-                "deployer": account.address, # Beberapa router menggunakan ini sebagai `sender` atau `feeRecipient`
+                "deployer": account.address,
                 "recipient": account.address,
                 "deadline": deadline,
                 "amountIn": amount_in_wei,
@@ -458,8 +447,7 @@ class SatsumaBot:
                 "limitSqrtPrice": limit_sqrt_price 
             }
             
-            # Estimasi gas yang lebih konservatif
-            gas_limit_estimate = 500000 # Ditingkatkan dari 300000
+            gas_limit_estimate = 500000
 
             swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
                 "from": account.address,
@@ -473,7 +461,7 @@ class SatsumaBot:
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             log.processing(f"Menunggu konfirmasi swap... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300) # Timeout 5 menit
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
             
             if receipt and receipt["status"] == 1:
                 log.success(f"Swap berhasil! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
@@ -515,7 +503,6 @@ class SatsumaBot:
                 log.error("Saldo token tidak cukup untuk menambah likuiditas.")
                 return {"success": False, "error": "Saldo token tidak cukup"}
 
-            # Approve kedua token
             log.processing("Memulai persetujuan (approve) untuk Token A...")
             approval_a = await self.approve_token(account, token_a_address, self.config["liquidity_router"], amount_a_wei)
             if not approval_a["success"]:
@@ -526,23 +513,20 @@ class SatsumaBot:
             if not approval_b["success"]:
                 return {"success": False, "error": "Persetujuan Token B gagal"}
             
-            # Add liquidity
             liquidity_contract = self.w3.eth.contract(address=self.config["liquidity_router"], abi=LIQUIDITY_ROUTER_ABI)
             
             deadline = int(time.time()) + 300
             nonce = self.w3.eth.get_transaction_count(account.address)
             
-            # amountAMin dan amountBMin harus dihitung berdasarkan slippage yang Anda inginkan.
-            # Untuk demo, kita set 0, yang berarti menerima slippage berapapun.
             amount_a_min = 0 
             amount_b_min = 0
 
             liquidity_tx = liquidity_contract.functions.addLiquidity(
-                token_a_address, token_b_address, account.address, account.address, # deployer dan recipient
+                token_a_address, token_b_address, account.address, account.address,
                 amount_a_wei, amount_b_wei, amount_a_min, amount_b_min, deadline
             ).build_transaction({
                 "from": account.address,
-                "gas": 400000, # Gas limit yang konservatif
+                "gas": 400000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce,
                 "chainId": self.config["chain_id"]
@@ -595,20 +579,18 @@ class SatsumaBot:
                 log.error(f"Saldo SUMA tidak cukup. Diperlukan: {amount_float:.6f}, Tersedia: {suma_info['formatted']:.6f}")
                 return {"success": False, "error": "Saldo SUMA tidak cukup"}
 
-            # Approve SUMA token
             log.processing("Memulai persetujuan (approve) untuk token SUMA...")
             approval_result = await self.approve_token(account, self.config["suma_address"], self.config["vesuma_address"], amount_wei)
             if not approval_result["success"]:
                 return {"success": False, "error": "Persetujuan SUMA gagal"}
             
-            # Create lock
             vesuma_contract = self.w3.eth.contract(address=self.config["vesuma_address"], abi=VESUMA_ABI)
             
             nonce = self.w3.eth.get_transaction_count(account.address)
             
             lock_tx = vesuma_contract.functions.create_lock(amount_wei, unlock_time).build_transaction({
                 "from": account.address,
-                "gas": 200000, # Gas limit standar
+                "gas": 200000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce,
                 "chainId": self.config["chain_id"]
@@ -647,24 +629,17 @@ class SatsumaBot:
                 log.error("Alamat kontrak Staking belum diatur. Silakan perbarui di config.json.")
                 return {"success": False, "error": "Alamat staking tidak valid"}
 
-            # Asumsi veSUMA memiliki 18 desimal
             amount_wei = int(amount_float * 10**18) 
             
             log.info(f"Melakukan staking {amount_float:.6f} veSUMA.")
 
-            # Periksa saldo veSUMA (jika ada kontraknya)
-            # Karena veSUMA biasanya non-transferable atau special, mungkin tidak ada fungsi balanceOf
-            # di ERC20 ABI. Anda mungkin perlu ABI spesifik untuk veSUMA jika ingin mengecek saldo.
-            # Untuk saat ini, kita lewatkan pengecekan saldo veSUMA di sini.
-
-            # Stake veSUMA
             staking_contract = self.w3.eth.contract(address=self.config["staking_contract"], abi=STAKING_ABI)
             
             nonce = self.w3.eth.get_transaction_count(account.address)
             
             stake_tx = staking_contract.functions.stake(amount_wei).build_transaction({
                 "from": account.address,
-                "gas": 200000, # Gas limit standar
+                "gas": 200000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce,
                 "chainId": self.config["chain_id"]
@@ -708,14 +683,13 @@ class SatsumaBot:
 
             log.info(f"Melakukan voting untuk gauge {gauge_address} dengan weight {weight}.")
 
-            # Vote with veSUMA
             voting_contract = self.w3.eth.contract(address=self.config["voting_contract"], abi=VOTING_ABI)
             
             nonce = self.w3.eth.get_transaction_count(account.address)
             
             vote_tx = voting_contract.functions.vote(gauge_address, weight).build_transaction({
                 "from": account.address,
-                "gas": 200000, # Gas limit standar
+                "gas": 200000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce,
                 "chainId": self.config["chain_id"]
@@ -756,14 +730,11 @@ class SatsumaBot:
         
         for i in range(self.settings["transaction_count"]):
             try:
-                # Random token pair
                 token_in = random.choice(tokens_for_swap)
                 token_out = random.choice([t for t in tokens_for_swap if t != token_in])
                 
-                # Random amount
                 amount = self.generate_random_amount()
                 
-                # Random private key (saat ini hanya ada 1)
                 private_key = random.choice(self.private_keys)
                 
                 log.step(f"Transaksi {i+1}/{self.settings['transaction_count']}")
@@ -780,10 +751,8 @@ class SatsumaBot:
                 self.settings["total_transactions"] += 1
                 self.settings["last_transaction_time"] = datetime.now().isoformat()
                 
-                # Simpan progress
                 self.save_user_settings()
                 
-                # Random delay antara transaksi
                 delay = random.uniform(5, 15)
                 log.info(f"Menunggu {delay:.1f} detik sebelum transaksi berikutnya...")
                 await asyncio.sleep(delay)
@@ -818,7 +787,6 @@ class SatsumaBot:
             
             log.step(f"Menampilkan saldo untuk: {account.address}")
             
-            # Get ETH balance
             eth_balance = self.w3.eth.get_balance(account.address)
             eth_formatted = self.w3.from_wei(eth_balance, 'ether')
             
@@ -826,7 +794,6 @@ class SatsumaBot:
             print(f"{Colors.WHITE}Alamat: {account.address}{Colors.RESET}")
             print(f"{Colors.GREEN}Saldo {self.config['symbol']}: {eth_formatted:.6f} {self.config['symbol']}{Colors.RESET}")
             
-            # Get token balances
             tokens = {
                 "USDC": self.config["usdc_address"],
                 "WCBTC": self.config["wcbtc_address"],
@@ -840,7 +807,6 @@ class SatsumaBot:
                 else:
                     print(f"{Colors.RED}Saldo {symbol}: Error mengambil saldo{Colors.RESET}")
             
-            # Tambahkan juga saldo veSUMA jika ada kontraknya
             if self.config["vesuma_address"] != Web3.to_checksum_address("0x0000000000000000000000000000000000000000"):
                 vesuma_info = await self.get_token_balance(self.config["vesuma_address"], account.address)
                 if vesuma_info:
@@ -860,7 +826,6 @@ class SatsumaBot:
             
         print(f"\n{Colors.CYAN}=== Riwayat Transaksi ==={Colors.RESET}")
         
-        # Tampilkan 10 transaksi terakhir
         for i, tx in enumerate(self.transaction_history[-10:], 1): 
             status_color = Colors.GREEN if tx["status"] == "success" else Colors.RED
             print(f"{Colors.WHITE}{i}. Tipe: {tx['type'].upper()}{Colors.RESET}")
@@ -868,7 +833,7 @@ class SatsumaBot:
             print(f"   Hash: {Colors.CYAN}{tx['tx_hash']}{Colors.RESET}")
             print(f"   Akun: {Colors.PURPLE}{tx.get('account', 'N/A')}{Colors.RESET}")
             print(f"   Waktu: {Colors.YELLOW}{tx['timestamp']}{Colors.RESET}")
-            print("-" * 30) # Garis pemisah antar transaksi
+            print("-" * 30)
             
         print(f"{Colors.CYAN}{'='*35}{Colors.RESET}")
 
@@ -903,7 +868,6 @@ class SatsumaBot:
                 token_in_input = input("Masukkan alamat token input (misal USDC atau WCBTC): ").strip()
                 token_out_input = input("Masukkan alamat token output (misal USDC atau WCBTC): ").strip()
                 
-                # Normalisasi alamat jika pengguna memasukkan "USDC" atau "WCBTC"
                 token_in_address = self.config['usdc_address'] if token_in_input.upper() == 'USDC' else \
                                   (self.config['wcbtc_address'] if token_in_input.upper() == 'WCBTC' else token_in_input)
                 token_out_address = self.config['usdc_address'] if token_out_input.upper() == 'USDC' else \
@@ -1065,7 +1029,6 @@ class SatsumaBot:
         log.banner()
         log.success("Satsuma DeFi Bot berhasil diinisialisasi!")
         
-        # Informasikan status saat ini jika ada konfigurasi tersimpan
         if self.settings["total_transactions"] > 0:
             log.info(f"Status Terakhir: Total Transaksi: {self.settings['total_transactions']}, Berhasil: {self.settings['successful_transactions']}, Gagal: {self.settings['failed_transactions']}")
             if self.settings["last_transaction_time"]:
@@ -1085,7 +1048,6 @@ class SatsumaBot:
                 if not should_continue:
                     break
                 
-                # Memberi sedikit jeda agar output tidak terlalu cepat
                 await asyncio.sleep(1) 
 
             except KeyboardInterrupt:
@@ -1093,8 +1055,7 @@ class SatsumaBot:
                 break
             except Exception as e:
                 log.error(f"Error tak terduga di loop utama: {str(e)}")
-                # Pertimbangkan untuk tidak keluar segera jika error non-kritis
-                await asyncio.sleep(3) # Jeda sebelum mencoba lagi
+                await asyncio.sleep(3)
 
 async def main():
     bot = SatsumaBot()
