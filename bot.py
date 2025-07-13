@@ -332,7 +332,15 @@ class SatsumaBot:
                 log.error(f"Alamat spender tidak valid: {spender_address}")
                 return {"success": False, "nonce": None}
 
+            # --- MODIFIKASI TERBARU: Debugging 'to' address ---
+            log.info(f"DEBUG: Mempersiapkan persetujuan. Token (akan di-approve): {token_address}, Spender (akan menerima izin): {spender_address}")
             token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
+            
+            # DEBUG: Cek alamat kontrak yang sebenarnya akan menjadi tujuan transaksi approve
+            # Ini seharusnya alamat kontrak token (misal USDC), BUKAN alamat swap_router.
+            log.info(f"DEBUG: 'to' address yang diharapkan untuk approve tx: {token_contract.address}")
+            # --- AKHIR MODIFIKASI TERBARU ---
+
             nonce = self.w3.eth.get_transaction_count(account.address)
             
             log.processing(f"Memeriksa izin (allowance) untuk token {token_address} oleh spender {spender_address}...")
@@ -342,7 +350,7 @@ class SatsumaBot:
                 log.success("Izin yang cukup sudah ada. Tidak perlu persetujuan.")
                 return {"success": True, "nonce": nonce}
             
-            log.processing(f"Mengirim transaksi persetujuan untuk {amount / (10**18):.6f} token...")
+            log.processing(f"Mengirim transaksi persetujuan untuk {amount / (10**token_contract.functions.decimals().call()):.6f} token...")
             
             approve_tx = token_contract.functions.approve(spender_address, amount).build_transaction({
                 "from": account.address,
@@ -352,6 +360,10 @@ class SatsumaBot:
                 "chainId": self.config["chain_id"]
             })
             
+            # --- MODIFIKASI TERBARU: Debugging data transaksi sebelum ditandatangani ---
+            log.info(f"DEBUG: approve_tx built data: {approve_tx['data'].hex()}")
+            # --- AKHIR MODIFIKASI TERBARU ---
+
             signed_tx = self.w3.eth.account.sign_transaction(approve_tx, private_key=account.key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
@@ -363,6 +375,7 @@ class SatsumaBot:
                 return {"success": True, "nonce": nonce + 1}
             else:
                 log.error(f"Transaksi persetujuan gagal. Receipt: {receipt}")
+                log.error(f"Coba periksa di explorer untuk detail revert reason: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 return {"success": False, "nonce": nonce}
                 
         except Exception as e:
@@ -411,6 +424,8 @@ class SatsumaBot:
 
             # --- Langkah Persetujuan (Approve) ---
             log.processing("Memulai proses persetujuan (approve) untuk token input...")
+            # token_in_address adalah alamat token yang akan di-approve (misal USDC)
+            # self.config["swap_router"] adalah alamat spender (swap router)
             approval_result = await self.approve_token(account, token_in_address, self.config["swap_router"], amount_in_wei)
             if not approval_result["success"]:
                 return {"success": False, "error": "Persetujuan token gagal"}
@@ -424,15 +439,8 @@ class SatsumaBot:
             
             deadline = int(time.time()) + 300
 
-            # Mengatur amountOutMinimum ke 99% dari amountIn (toleransi slippage 1%).
-            # Ini lebih aman daripada 0, yang akan menerima slippage tak terbatas.
             amount_out_minimum = int(amount_in_wei * 0.99) 
-            
-            # --- PERBAIKAN PENTING ---
-            # Mengatur limitSqrtPrice ke 1 (MIN_SQRT_RATIO) seperti pada transaksi yang berhasil Anda berikan.
-            # Ini memungkinkan swap untuk melintasi semua tick ke arah harga yang relevan
-            # tanpa terhenti oleh batasan harga tertentu di awal.
-            limit_sqrt_price = 1 # Nilai yang terbukti berhasil dari TX Anda!
+            limit_sqrt_price = 1 # Nilai yang terbukti berhasil dari TX Anda sebelumnya!
             
             log.info(f"Parameter Swap: amountIn={amount_in_float:.6f}, amountOutMinimum={amount_out_minimum}, limitSqrtPrice={limit_sqrt_price}")
 
@@ -726,23 +734,21 @@ class SatsumaBot:
         
         log.info(f"Memulai automated swaps dengan {self.settings['transaction_count']} transaksi.")
         
-        # --- MODIFIKASI DIMULAI DI SINI ---
-        # Ini akan memaksa swap selalu dari USDC ke WCBTC dengan jumlah tetap.
-        # Jika Anda ingin kembali ke pemilihan token/jumlah acak, hapus atau komentari 3 baris di bawah ini.
+        # --- MODIFIKASI TERBARU: Memaksa arah swap dan menggunakan jumlah acak ---
+        # Memaksa swap selalu dari USDC ke WCBTC
         fixed_token_in_address = self.config["usdc_address"]  # Selalu USDC sebagai input
         fixed_token_out_address = self.config["wcbtc_address"] # Selalu WCBTC sebagai output
-        fixed_amount_to_swap = 0.01 # Jumlah USDC yang ingin Anda swap (misal: 0.01 USDC)
-        log.info(f"Swap otomatis akan selalu dari USDC ke WCBTC dengan jumlah {fixed_amount_to_swap} USDC.")
-        # --- MODIFIKASI BERAKHIR DI SINI ---
+        
+        log.info(f"Swap otomatis akan selalu dari USDC ke WCBTC dengan jumlah acak.")
+        # --- AKHIR MODIFIKASI TERBARU ---
 
         for i in range(self.settings["transaction_count"]):
             try:
-                # Gunakan nilai yang sudah di-fixed untuk token in/out dan jumlahnya
                 token_in = fixed_token_in_address
                 token_out = fixed_token_out_address
-                amount = fixed_amount_to_swap
                 
-                # Private key akan tetap dipilih secara acak (jika ada banyak)
+                amount = self.generate_random_amount() 
+                
                 private_key = random.choice(self.private_keys)
                 
                 log.step(f"Transaksi {i+1}/{self.settings['transaction_count']}")
