@@ -6,145 +6,65 @@ import time
 import sys
 import os
 import json
-from rich.console import Console
-from rich.table import Table
-
-# Initialize rich console
-console = Console()
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
 
-# File to store persistent transaction count
+# Configuration files
 CONFIG_FILE = "satsuma_config.json"
+MAIN_CONFIG_FILE = "config.json" 
 
-# === Animated Banner ===
-def display_banner():
-    banner_text = """
-███████╗ █████╗ ████████╗███████╗██╗   ██║███╗   ███╗ █████╗ 
-██╔════╝██╔══██╗╚══██╔══╝██╔════╝██║   ██║████╗ ████║██╔══██╗
-███████╗███████║   ██║   ███████╗██║   ██║██╔████╔██║███████║
-╚════██║██╔══██║   ██║   ╚════██║██║   ██║██║╚██╔╝██║██╔══██║
-███████║██║  ██║   ██║   ███████║╚██████╔╝██║ ╚═╝ ██║██║  ██║
-╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝
-    """
-    console.print(f"[bold cyan]{banner_text}[/bold cyan]", justify="center")
-    console.print(f"[bold green]L E T S - F U C K - T H I S - T E S T N E T [/bold green]", justify="center")
-    console.print("-" * 50, style="green", justify="center")
-    for _ in range(3):
-        console.print(f"[yellow]> Initializing{'.' * (_ % 4)}[/yellow]", justify="center", end="\r")
-        time.sleep(0.3)
-    console.print(" " * 50, end="\r")
-    console.print(f"[green]+ Satsuma Bot  - CREATED BY Alloidn[/green]", justify="center")
-    console.print("-" * 50, style="green", justify="center")
+# Terminal Colors
+class Colors:
+    RESET = '\033[0m'
+    CYAN = '\033[36m'
+    GREEN = '\033[32m'
+    YELLOW = '\033[33m'
+    RED = '\033[31m'
+    WHITE = '\033[37m'
+    BOLD = '\033[1m'
+    PURPLE = '\033[35m'
 
-# === CLI Menu ===
-def display_menu():
-    table = Table(title="[bold blue]Satsuma Bot Menu[/bold blue]", style="green", title_justify="center", show_header=False, expand=True)
-    table.add_column(justify="center", style="cyan")
-    
-    options = [
-        "1. Start Transactions",
-        "2. Set Transaction Count",
-        "3. Manual Swap",
-        "4. Add Liquidity",
-        "5. Convert SUMA to veSUMA",
-        "6. Stake veSUMA",
-        "7. Vote with veSUMA",
-        "8. Exit"
-    ]
-    
-    for opt in options:
-        table.add_row(opt)
-    
-    console.print(table)
-    choice = console.input("[bold magenta]> Select option (1-8): [/bold magenta]")
-    return choice
+class Logger:
+    @staticmethod
+    def info(msg):
+        print(f"{Colors.GREEN}[✓] {msg}{Colors.RESET}")
 
-# Load or initialize user settings
-def load_user_settings():
-    user_settings = {
-        "transaction_count": 0,
-        "current_round": 0
-    }
-    try:
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r') as f:
-                data = json.load(f)
-                user_settings["transaction_count"] = data.get("transaction_count", 0)
-                console.print(f"[green]+ Loaded saved transaction count: {user_settings['transaction_count']}[/green]")
-    except Exception as e:
-        console.print(f"[red]- Error loading settings: {str(e)}[/red]")
-    return user_settings
+    @staticmethod
+    def warn(msg):
+        print(f"{Colors.YELLOW}[!] {msg}{Colors.RESET}")
 
-# Save transaction count to file
-def save_transaction_count(count):
-    try:
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump({"transaction_count": count}, f)
-        console.print(f"[green]+ Transaction count {count} saved successfully[/green]")
-    except Exception as e:
-        console.print(f"[red]- Error saving transaction count: {str(e)}[/red]")
+    @staticmethod
+    def error(msg):
+        print(f"{Colors.RED}[✗] {msg}{Colors.RESET}")
 
-# Generate random amount between 0.0001 and 0.0002
-def generate_random_amount():
-    min_amount = 0.0001
-    max_amount = 0.0002
-    random_amount = random.uniform(min_amount, max_amount)
-    return round(random_amount, 6)
+    @staticmethod
+    def success(msg):
+        print(f"{Colors.GREEN}[+] {msg}{Colors.RESET}")
 
-# Load configuration from .env
-def load_config():
-    display_banner()
-    console.print("[yellow]> Loading configuration...[/yellow]", justify="center")
-    
-    config = {
-        "rpc": "https://rpc.testnet.citrea.xyz",
-        "chain_id": 5115,
-        "symbol": "cBTC",
-        "explorer": "https://explorer.testnet.citrea.xyz",
-        "contract_address": Web3.to_checksum_address("0x3012e9049d05b4b5369d690114d5a5861ebb85cb"),
-        "pool_address": Web3.to_checksum_address("0x080c376e6aB309fF1a861e1c3F91F27b8D4f1443"),
-        "usdc_address": Web3.to_checksum_address("0x36c16eaC6B0Ba6c50f494914ff015fCa95B7835F"),
-        "wcbtc_address": Web3.to_checksum_address("0x8d0c9d1c17ae5e40fff9be350f57840e9e66cd93"),
-        "suma_address": Web3.to_checksum_address("0xdE4251dd68e1aD5865b14Dd527E54018767Af58a"),
-        "vesuma_address": Web3.to_checksum_address("0x..."),  # Add actual veSUMA address
-        "voting_contract": Web3.to_checksum_address("0x..."),  # Add actual voting contract address
-        "staking_contract": Web3.to_checksum_address("0x..."),  # Add actual staking contract address
-        "gauge_address": Web3.to_checksum_address("0x...")     # Add actual gauge address
-    }
+    @staticmethod
+    def processing(msg):
+        print(f"{Colors.CYAN}[⟳] {msg}{Colors.RESET}")
 
-    return config
+    @staticmethod
+    def step(msg):
+        print(f"{Colors.WHITE}[➤] {msg}{Colors.RESET}")
 
-# Initialize Web3 provider
-def initialize_provider(config):
-    try:
-        w3 = Web3(Web3.HTTPProvider(config["rpc"]))
-        if not w3.is_connected():
-            raise Exception("Failed to connect to RPC")
-        console.print(f"[green]+ Connected to {config['rpc']} (Chain ID: {config['chain_id']})[/green]")
-        return w3
-    except Exception as e:
-        console.print(f"[red]- Provider initialization error: {str(e)}[/red]")
-        sys.exit(1)
+    @staticmethod
+    def banner():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(f"{Colors.CYAN}{Colors.BOLD}")
+        print("-" * 50)
+        print(" Satsuma auto bot ")
+        print(" powered by Zona Airdrop ")
+        print(" Group @ZonaAirdr0p ")
+        print("-" * 50)
+        print(f"{Colors.RESET}\n")
 
-# Load private keys from environment variables
-def get_private_keys():
-    private_keys = []
-    key = os.getenv("PRIVATE_KEY_1")
-    if not key:
-        console.print("[red]- No private key found in .env file[/red]")
-        sys.exit(1)
-    try:
-        account = Web3().eth.account.from_key(key)
-        console.print(f"[green]+ Loaded 1 private key[/green]")
-        private_keys.append(key)
-    except Exception as e:
-        console.print(f"[red]- Invalid private key: {str(e)}[/red]")
-        sys.exit(1)
-    return private_keys
+log = Logger()
 
-# ERC20 ABI
+# Contract ABIs
 ERC20_ABI = [
     {
         "constant": False,
@@ -172,10 +92,23 @@ ERC20_ABI = [
         "name": "allowance",
         "outputs": [{"name": "", "type": "uint256"}],
         "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [{"name": "", "type": "uint8"}],
+        "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "symbol",
+        "outputs": [{"name": "", "type": "string"}],
+        "type": "function"
     }
 ]
 
-# Swap Router ABI
 SWAP_ROUTER_ABI = [
     {
         "inputs": [
@@ -198,7 +131,20 @@ SWAP_ROUTER_ABI = [
         "outputs": [{"name": "amountOut", "type": "uint256"}],
         "stateMutability": "payable",
         "type": "function"
-    },
+    }
+]
+
+MULTICALL_ABI = [
+    {
+        "inputs": [{"internalType": "bytes[]", "name": "data", "type": "bytes[]"}],
+        "name": "multicall",
+        "outputs": [{"internalType": "bytes[]", "name": "results", "type": "bytes[]"}],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]
+
+LIQUIDITY_ROUTER_ABI = [
     {
         "inputs": [
             {"name": "tokenA", "type": "address"},
@@ -222,42 +168,6 @@ SWAP_ROUTER_ABI = [
     }
 ]
 
-# Algebra Pool ABI
-ALGEBRA_POOL_ABI = [
-    {
-        "constant": True,
-        "inputs": [],
-        "name": "getReserves",
-        "outputs": [
-            {"name": "", "type": "uint128"},
-            {"name": "", "type": "uint128"}
-        ],
-        "type": "function"
-    },
-    {
-        "constant": True,
-        "inputs": [],
-        "name": "token0",
-        "outputs": [{"name": "", "type": "address"}],
-        "type": "function"
-    },
-    {
-        "constant": True,
-        "inputs": [],
-        "name": "token1",
-        "outputs": [{"name": "", "type": "address"}],
-        "type": "function"
-    },
-    {
-        "constant": True,
-        "inputs": [],
-        "name": "factory",
-        "outputs": [{"name": "", "type": "address"}],
-        "type": "function"
-    }
-]
-
-# veSUMA ABI
 VESUMA_ABI = [
     {
         "name": "create_lock",
@@ -270,43 +180,27 @@ VESUMA_ABI = [
     },
     {
         "name": "increase_amount",
-        "inputs": [
-            {"name": "_value", "type": "uint256"}
-        ],
-        "outputs": [],
-        "type": "function"
-    },
-    {
-        "name": "increase_unlock_time",
-        "inputs": [
-            {"name": "_unlock_time", "type": "uint256"}
-        ],
+        "inputs": [{"name": "_value", "type": "uint256"}],
         "outputs": [],
         "type": "function"
     }
 ]
 
-# Staking ABI
 STAKING_ABI = [
     {
         "name": "stake",
-        "inputs": [
-            {"name": "_amount", "type": "uint256"}
-        ],
+        "inputs": [{"name": "_amount", "type": "uint256"}],
         "outputs": [],
         "type": "function"
     },
     {
         "name": "withdraw",
-        "inputs": [
-            {"name": "_amount", "type": "uint256"}
-        ],
+        "inputs": [{"name": "_amount", "type": "uint256"}],
         "outputs": [],
         "type": "function"
     }
 ]
 
-# Voting ABI
 VOTING_ABI = [
     {
         "name": "vote",
@@ -316,604 +210,847 @@ VOTING_ABI = [
         ],
         "outputs": [],
         "type": "function"
-    },
-    {
-        "name": "vote_for_many_gauge_weights",
-        "inputs": [
-            {"name": "_gauge_addr", "type": "address[]"},
-            {"name": "_weights", "type": "uint256[]"}
-        ],
-        "outputs": [],
-        "type": "function"
     }
 ]
 
-async def approve_token(w3, config, account, token_address, amount):
-    try:
-        token_contract = w3.eth.contract(address=token_address, abi=ERC20_ABI)
-        nonce = w3.eth.get_transaction_count(account.address)
-        console.print(f"[green]+ Approving token {token_address} for {account.address} with nonce {nonce}[/green]")
+class SatsumaBot:
+    def __init__(self):
+        self.config = self.load_config()
+        self.w3 = self.initialize_provider()
+        self.private_keys = self.get_private_keys()
+        self.settings = self.load_user_settings()
+        self.transaction_history = []
 
-        allowance = token_contract.functions.allowance(account.address, config["contract_address"]).call()
-        if allowance >= amount:
-            console.print("[green]+ Sufficient token allowance already exists[/green]")
-            return {"success": True, "nonce": nonce}
-
-        console.print("[yellow]> Sending token approval transaction...[/yellow]")
-        approve_tx = token_contract.functions.approve(config["contract_address"], amount).build_transaction({
-            "from": account.address,
-            "gas": 100000,
-            "nonce": nonce
-        })
-
-        signed_tx = w3.eth.account.sign_transaction(approve_tx, private_key=account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        console.print("[yellow]> Waiting for approval transaction confirmation...[/yellow]")
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        if receipt["status"] == 1:
-            console.print(f"[green]+ Token approval successful! Tx: {config['explorer']}/tx/{tx_hash.hex()}[/green]")
-            return {"success": True, "nonce": nonce + 1}
-        else:
-            console.print("[red]- Token approval transaction failed[/red]")
-            return {"success": False, "nonce": nonce}
-    except Exception as e:
-        console.print(f"[red]- Token approval error for {account.address}: {str(e)}[/red]")
-        return {"success": False, "nonce": nonce}
-
-async def check_pool_reserves(w3, config, token0, token1):
-    try:
-        pool_contract = w3.eth.contract(address=config["pool_address"], abi=ALGEBRA_POOL_ABI)
-        reserves = pool_contract.functions.getReserves().call()
-        console.print(f"[green]+ Pool reserves for {token0} -> {token1}: {reserves[0] / 10**6} {token0}, {reserves[1] / 10**18} {token1}[/green]")
-        return reserves
-    except Exception as e:
-        console.print(f"[red]- Failed to fetch pool reserves: {str(e)}[/red]")
-        return None
-
-async def swap_usdc_to_suma(w3, config, private_key):
-    try:
-        account = w3.eth.account.from_key(private_key)
-        console.print(f"[blue]=== Processing swap for address: {account.address} ===[/blue]")
-
-        random_amount = generate_random_amount()
-        console.print(f"[green]+ Random amount generated: {random_amount} USDC[/green]")
-
-        usdc_contract = w3.eth.contract(address=config["usdc_address"], abi=ERC20_ABI)
-        balance = usdc_contract.functions.balanceOf(account.address).call()
-        console.print(f"[green]+ USDC balance: {balance / 10**6} USDC[/green]")
-
-        amount_in = int(random_amount * 10**6)
-        if balance < amount_in:
-            console.print(f"[red]- Insufficient USDC balance. Need: {random_amount} USDC[/red]")
-            return
-
-        await check_pool_reserves(w3, config, "USDC", "WCBTC")
-        await check_pool_reserves(w3, config, "WCBTC", "SUMA")
-
-        approval_amount = amount_in * 2
-        approval_result = await approve_token(w3, config, account, config["usdc_address"], approval_amount)
-        if not approval_result["success"]:
-            console.print("[red]- Skipping swap due to USDC approval failure[/red]")
-            return
-
-        swap_router = w3.eth.contract(address=config["contract_address"], abi=SWAP_ROUTER_ABI)
-        deadline = int(time.time()) + 20 * 60
-
-        params_usdc_wcbtc = (
-            config["usdc_address"],
-            config["wcbtc_address"],
-            Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
-            account.address,
-            deadline,
-            amount_in,
-            0,
-            0
-        )
-
-        console.print(f"[green]+ Swap parameters: tokenIn={params_usdc_wcbtc[0]}, tokenOut={params_usdc_wcbtc[1]}, amountIn={amount_in / 10**6}[/green]")
-
+    def load_config(self):
+        config = {
+            "rpc": "https://rpc.testnet.citrea.xyz",
+            "chain_id": 5115,
+            "symbol": "cBTC",
+            "explorer": "https://explorer.testnet.citrea.xyz",
+            "swap_router": Web3.to_checksum_address("0x3012e9049d05b4b5369d690114d5a5861ebb85cb"),
+            "liquidity_router": Web3.to_checksum_address("0x55a4669cd6895EA25C174F13E1b49d69B4481704"),
+            "pool_address": Web3.to_checksum_address("0x080c376e6aB309fF1a861e1c3F91F27b8D4f1443"),
+            "usdc_address": Web3.to_checksum_address("0x36c16eaC6B0Ba6c50f494914ff015fCa95B7835F"),
+            "wcbtc_address": Web3.to_checksum_address("0x8d0c9d1c17ae5e40fff9be350f57840e9e66cd93"),
+            "suma_address": Web3.to_checksum_address("0xdE4251dd68e1aD5865b14Dd527E54018767Af58a"),
+            "vesuma_address": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
+            "voting_contract": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
+            "staking_contract": Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
+            "gauge_address": Web3.to_checksum_address("0x0000000000000000000000000000000000000000")
+        }
+        
         try:
-            console.print("[yellow]> Estimating gas for USDC -> WCBTC transaction...[/yellow]")
-            gas_estimate = swap_router.functions.exactInputSingle(params_usdc_wcbtc).estimate_gas({
-                "from": account.address,
-                "value": 0
-            })
-            console.print(f"[green]+ Estimated gas: {gas_estimate}[/green]")
+            if os.path.exists(MAIN_CONFIG_FILE):
+                with open(MAIN_CONFIG_FILE, 'r') as f:
+                    loaded_config = json.load(f)
+                    config.update(loaded_config)
+                log.success(f"Konfigurasi dimuat dari {MAIN_CONFIG_FILE}")
+            else:
+                with open(MAIN_CONFIG_FILE, 'w') as f:
+                    json.dump(config, f, indent=2)
+                log.warn(f"File konfigurasi '{MAIN_CONFIG_FILE}' tidak ditemukan. Membuat file baru dengan konfigurasi default.")
+        except json.JSONDecodeError:
+            log.error(f"Error membaca '{MAIN_CONFIG_FILE}'. Pastikan format JSON benar.")
+            sys.exit(1)
         except Exception as e:
-            console.print(f"[red]- Gas estimation failed: {str(e)}[/red]")
-            return
-
-        console.print("[yellow]> Sending USDC -> WCBTC transaction...[/yellow]")
-        usdc_wcbtc_tx = swap_router.functions.exactInputSingle(params_usdc_wcbtc).build_transaction({
-            "from": account.address,
-            "value": 0,
-            "gas": 500000,
-            "nonce": approval_result["nonce"]
-        })
-
-        signed_tx = w3.eth.account.sign_transaction(usdc_wcbtc_tx, private_key=account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        console.print("[yellow]> Waiting for USDC -> WCBTC transaction confirmation...[/yellow]")
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        if receipt["status"] != 1:
-            console.print("[red]- USDC -> WCBTC transaction failed[/red]")
-            console.print(f"[cyan]Transaction receipt: {receipt}[/cyan]")
-            return
-        console.print(f"[green]+ USDC -> WCBTC swap successful! Tx: {config['explorer']}/tx/{tx_hash.hex()}[/green]")
-
-        wcbtc_contract = w3.eth.contract(address=config["wcbtc_address"], abi=ERC20_ABI)
-        wcbtc_balance = wcbtc_contract.functions.balanceOf(account.address).call()
-        console.print(f"[green]+ WCBTC balance: {wcbtc_balance / 10**18} WCBTC[/green]")
-
-        if wcbtc_balance == 0:
-            console.print("[red]- No WCBTC received, skipping WCBTC -> SUMA swap[/red]")
-            return
-
-        wcbtc_approval_result = await approve_token(w3, config, account, config["wcbtc_address"], wcbtc_balance)
-        if not wcbtc_approval_result["success"]:
-            console.print("[red]- Skipping swap due to WCBTC approval failure[/red]")
-            return
-
-        params_wcbtc_suma = (
-            config["wcbtc_address"],
-            config["suma_address"],
-            Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
-            account.address,
-            deadline,
-            wcbtc_balance,
-            0,
-            0
-        )
-
-        try:
-            console.print("[yellow]> Estimating gas for WCBTC -> SUMA transaction...[/yellow]")
-            gas_estimate = swap_router.functions.exactInputSingle(params_wcbtc_suma).estimate_gas({
-                "from": account.address,
-                "value": 0
-            })
-            console.print(f"[green]+ Estimated gas: {gas_estimate}[/green]")
-        except Exception as e:
-            console.print(f"[red]- Gas estimation failed: {str(e)}[/red]")
-            return
-
-        console.print("[yellow]> Sending WCBTC -> SUMA transaction...[/yellow]")
-        wcbtc_suma_tx = swap_router.functions.exactInputSingle(params_wcbtc_suma).build_transaction({
-            "from": account.address,
-            "value": 0,
-            "gas": 500000,
-            "nonce": wcbtc_approval_result["nonce"]
-        })
-
-        signed_tx = w3.eth.account.sign_transaction(wcbtc_suma_tx, private_key=account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        console.print("[yellow]> Waiting for WCBTC -> SUMA transaction confirmation...[/yellow]")
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        if receipt["status"] == 1:
-            console.print(f"[green]+ WCBTC -> SUMA swap successful! Tx: {config['explorer']}/tx/{tx_hash.hex()}[/green]")
-        else:
-            console.print("[red]- WCBTC -> SUMA transaction failed[/red]")
-            console.print(f"[cyan]Transaction receipt: {receipt}[/cyan]")
-
-    except Exception as e:
-        console.print(f"[red]- Swap error: {str(e)}[/red]")
-
-async def run_transactions(w3, config, private_keys, transaction_count):
-    console.print(f"[blue]=== Starting transaction round ===[/blue]")
-    console.print(f"[green]+ Performing {transaction_count} transactions with random amounts (0.0001-0.0002 USDC)[/green]")
-
-    for i in range(transaction_count):
-        console.print(f"[blue]=== Transaction {i + 1}/{transaction_count} ===[/blue]")
-        for private_key in private_keys:
-            await swap_usdc_to_suma(w3, config, private_key)
-            await asyncio.sleep(2)
-
-        if i < transaction_count - 1:
-            console.print("[yellow]> Waiting 30 seconds before next transaction...[/yellow]")
-            await asyncio.sleep(30)
-
-    console.print(f"[green]+ Transaction round completed![/green]")
-
-async def set_transaction_count():
-    while True:
-        try:
-            count = int(console.input("[bold magenta]> Enter Number of Transactions: [/bold magenta]"))
-            if count <= 0:
-                console.print("[red]- Invalid number entered. Please enter a positive number.[/red]")
-                continue
-            save_transaction_count(count)
-            return count
-        except ValueError:
-            console.print("[red]- Invalid input. Please enter a valid number.[/red]")
-        except Exception as e:
-            console.print(f"[red]- Error getting user input: {str(e)}[/red]")
-
-async def manual_swap(w3, config, private_keys):
-    while True:
-        try:
-            count = int(console.input("[bold magenta]> Enter Number of Swaps: [/bold magenta]"))
-            if count <= 0:
-                console.print("[red]- Invalid number entered. Please enter a positive number.[/red]")
-                continue
-            console.print(f"[blue]=== Starting Manual Swap ===[/blue]")
-            await run_transactions(w3, config, private_keys, count)
-            break
-        except ValueError:
-            console.print("[red]- Invalid input. Please enter a valid number.[/red]")
-        except Exception as e:
-            console.print(f"[red]- Error getting user input: {str(e)}[/red]")
-
-async def add_liquidity(w3, config, private_key):
-    try:
-        account = w3.eth.account.from_key(private_key)
-        console.print(f"\n[blue]=== Adding Liquidity for: {account.address} ===[/blue]")
-        
-        # Get pool contract
-        pool_contract = w3.eth.contract(address=config["pool_address"], abi=ALGEBRA_POOL_ABI)
-        
-        # Get token addresses
-        token0_address = pool_contract.functions.token0().call()
-        token1_address = pool_contract.functions.token1().call()
-        factory_address = pool_contract.functions.factory().call()
-        
-        # Get reserves
-        reserves = await check_pool_reserves(w3, config, "USDC", "WCBTC")
-        if not reserves:
-            return
-        
-        # Determine which token is USDC and which is WCBTC
-        usdc_decimals = 6
-        wcbtc_decimals = 18
-        usdc_contract = w3.eth.contract(address=config["usdc_address"], abi=ERC20_ABI)
-        wcbtc_contract = w3.eth.contract(address=config["wcbtc_address"], abi=ERC20_ABI)
-        
-        # Get balances
-        usdc_balance = usdc_contract.functions.balanceOf(account.address).call()
-        wcbtc_balance = wcbtc_contract.functions.balanceOf(account.address).call()
-        
-        console.print(f"[green]+ USDC Balance: {usdc_balance / 10**usdc_decimals:.6f}[/green]")
-        console.print(f"[green]+ WCBTC Balance: {wcbtc_balance / 10**wcbtc_decimals:.6f}[/green]")
-        
-        # Get user input for amounts
-        try:
-            usdc_amount = float(console.input("[bold magenta]> Enter USDC amount to add: [/bold magenta]"))
-            wcbtc_amount = float(console.input("[bold magenta]> Enter WCBTC amount to add: [/bold magenta]"))
-        except ValueError:
-            console.print("[red]- Invalid input. Please enter numbers.[/red]")
-            return
+            log.warn(f"Tidak dapat memuat atau menyimpan file konfigurasi: {str(e)}")
             
-        usdc_amount_wei = int(usdc_amount * 10**usdc_decimals)
-        wcbtc_amount_wei = int(wcbtc_amount * 10**wcbtc_decimals)
-        
-        # Check balances
-        if usdc_balance < usdc_amount_wei:
-            console.print(f"[red]- Insufficient USDC. Need: {usdc_amount}, Have: {usdc_balance / 10**usdc_decimals}[/red]")
-            return
-        if wcbtc_balance < wcbtc_amount_wei:
-            console.print(f"[red]- Insufficient WCBTC. Need: {wcbtc_amount}, Have: {wcbtc_balance / 10**wcbtc_decimals}[/red]")
-            return
-        
-        # Calculate optimal ratio based on pool reserves
-        reserve_usdc = reserves[0] if token0_address == config["usdc_address"] else reserves[1]
-        reserve_wcbtc = reserves[1] if token1_address == config["wcbtc_address"] else reserves[0]
-        
-        # Calculate the required ratio
-        ratio = reserve_usdc / reserve_wcbtc if reserve_wcbtc > 0 else 0
-        
-        # Calculate the required WCBTC for the given USDC
-        required_wcbtc = (usdc_amount_wei * reserve_wcbtc) / reserve_usdc if reserve_usdc > 0 else 0
-        
-        # Calculate slippage tolerance (1%)
-        slippage_tolerance = 0.01
-        
-        # Calculate minimum amounts
-        min_usdc = usdc_amount_wei * (1 - slippage_tolerance)
-        min_wcbtc = wcbtc_amount_wei * (1 - slippage_tolerance)
-        
-        console.print(f"[green]+ Pool Ratio: 1 WCBTC = {ratio / 10**12:.6f} USDC")
-        console.print(f"[green]+ Required WCBTC for {usdc_amount} USDC: {required_wcbtc / 10**wcbtc_decimals:.6f}")
-        console.print(f"[green]+ Using minimums: USDC={min_usdc / 10**usdc_decimals:.6f}, WCBTC={min_wcbtc / 10**wcbtc_decimals:.6f}")
-        
-        # Approve tokens
-        console.print("[yellow]> Approving tokens...[/yellow]")
-        usdc_approval = await approve_token(w3, config, account, config["usdc_address"], usdc_amount_wei)
-        wcbtc_approval = await approve_token(w3, config, account, config["wcbtc_address"], wcbtc_amount_wei)
-        
-        if not usdc_approval["success"] or not wcbtc_approval["success"]:
-            console.print("[red]- Token approval failed. Aborting liquidity add.[/red]")
-            return
+        return config
+
+    def initialize_provider(self):
+        try:
+            w3 = Web3(Web3.HTTPProvider(self.config["rpc"]))
+            if not w3.is_connected():
+                raise Exception("Gagal terhubung ke RPC. Periksa koneksi internet atau URL RPC.")
             
-        # Get router contract
-        router_contract = w3.eth.contract(address=config["contract_address"], abi=SWAP_ROUTER_ABI)
-        deadline = int(time.time()) + 20 * 60  # 20 minutes
+            log.success(f"Terhubung ke {self.config['rpc']}")
+            log.info(f"Chain ID: {self.config['chain_id']}")
+            return w3
+        except Exception as e:
+            log.error(f"Inisialisasi provider gagal: {str(e)}")
+            log.warn("Pastikan URL RPC Anda benar dan aktif.")
+            sys.exit(1)
+
+    def get_private_keys(self):
+        private_keys = []
+        key = os.getenv("PRIVATE_KEY_1")
         
-        # Build add liquidity transaction with slippage protection
-        add_liq_tx = router_contract.functions.addLiquidity(
-            config["usdc_address"],
-            config["wcbtc_address"],
-            factory_address,
-            account.address,
-            usdc_amount_wei,
-            wcbtc_amount_wei,
-            int(min_usdc),  # amountAMin with slippage
-            int(min_wcbtc),  # amountBMin with slippage
-            deadline
-        ).build_transaction({
-            "from": account.address,
-            "gas": 500000,
-            "nonce": w3.eth.get_transaction_count(account.address),
-        })
+        if not key or key == "your_private_key_here":
+            log.error("Tidak ada private key yang valid ditemukan di environment variables (.env)")
+            log.info("Silakan atur PRIVATE_KEY_1 di file .env Anda dengan private key asli Anda.")
+            
+            key = input("Masukkan private key Anda (tanpa awalan 0x, tekan Enter untuk keluar): ").strip()
+            if not key:
+                sys.exit(1)
         
-        # Sign and send transaction
-        signed_tx = w3.eth.account.sign_transaction(add_liq_tx, private_key=account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        console.print("[yellow]> Adding liquidity...[/yellow]")
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+        if key.startswith('0x'):
+            key = key[2:]
+
+        try:
+            account = Web3().eth.account.from_key(key)
+            log.success(f"Private key dimuat untuk alamat: {account.address}")
+            private_keys.append(key)
+        except Exception as e:
+            log.error(f"Private key tidak valid: {str(e)}")
+            sys.exit(1)
+            
+        return private_keys
+
+    def load_user_settings(self):
+        user_settings = {
+            "transaction_count": 0,
+            "current_round": 0,
+            "total_transactions": 0,
+            "successful_transactions": 0,
+            "failed_transactions": 0,
+            "last_transaction_time": None
+        }
         
-        if receipt["status"] == 1:
-            console.print(f"[green]+ Liquidity added successfully! Tx: {config['explorer']}/tx/{tx_hash.hex()}[/green]")
-        else:
-            console.print("[red]- Liquidity add transaction failed[/red]")
-            # Try to get revert reason
+        try:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r') as f:
+                    data = json.load(f)
+                    user_settings.update(data)
+                log.success(f"Konfigurasi pengguna dimuat dari '{CONFIG_FILE}'. Jumlah transaksi yang direncanakan: {user_settings['transaction_count']}")
+            else:
+                log.warn(f"File konfigurasi pengguna '{CONFIG_FILE}' tidak ditemukan. Menggunakan pengaturan default.")
+        except json.JSONDecodeError:
+            log.error(f"Error membaca '{CONFIG_FILE}'. Pastikan format JSON benar. Menggunakan pengaturan default.")
+        except Exception as e:
+            log.error(f"Gagal memuat pengaturan pengguna: {str(e)}. Menggunakan pengaturan default.")
+            
+        return user_settings
+
+    def save_user_settings(self):
+        try:
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(self.settings, f, indent=2)
+            log.info("Konfigurasi pengguna berhasil disimpan.")
+        except Exception as e:
+            log.error(f"Gagal menyimpan pengaturan pengguna: {str(e)}")
+
+    def generate_random_amount(self, min_amount=0.0001, max_amount=0.0002):
+        random_amount = random.uniform(min_amount, max_amount)
+        return round(random_amount, 6)
+
+    async def approve_token(self, account, token_address, spender_address, amount):
+        try:
+            if not self.w3.is_checksum_address(token_address):
+                log.error(f"Alamat token tidak valid: {token_address}")
+                return {"success": False, "nonce": None}
+            if not self.w3.is_checksum_address(spender_address):
+                log.error(f"Alamat spender tidak valid: {spender_address}")
+                return {"success": False, "nonce": None}
+
+            log.info(f"DEBUG: Mempersiapkan persetujuan. Token (akan di-approve): {token_address}, Spender (akan menerima izin): {spender_address}")
+            token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
+            
+            log.info(f"DEBUG: 'to' address yang diharapkan untuk approve tx: {token_contract.address}")
+
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
+            log.processing(f"Memeriksa izin (allowance) untuk token {token_address} oleh spender {spender_address}...")
+            
+            allowance = token_contract.functions.allowance(account.address, spender_address).call()
+            if allowance >= amount:
+                log.success("Izin yang cukup sudah ada. Tidak perlu persetujuan.")
+                return {"success": True, "nonce": nonce}
+            
+            log.processing(f"Mengirim transaksi persetujuan untuk {amount / (10**token_contract.functions.decimals().call()):.6f} token...")
+            
+            approve_tx = token_contract.functions.approve(spender_address, amount).build_transaction({
+                "from": account.address,
+                "gas": 100000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": nonce,
+                "chainId": self.config["chain_id"]
+            })
+            
+            log.info(f"DEBUG: approve_tx built data: {approve_tx['data'].hex()}")
+
+            signed_tx = self.w3.eth.account.sign_transaction(approve_tx, private_key=account.key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            
+            log.processing(f"Menunggu konfirmasi persetujuan... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt and receipt["status"] == 1:
+                log.success(f"Persetujuan berhasil! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                return {"success": True, "nonce": nonce + 1}
+            else:
+                log.error(f"Transaksi persetujuan gagal. Receipt: {receipt}")
+                log.error(f"Coba periksa di explorer untuk detail revert reason: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                return {"success": False, "nonce": nonce}
+                
+        except Exception as e:
+            log.error(f"Error persetujuan: {str(e)}")
+            return {"success": False, "nonce": nonce if 'nonce' in locals() else None}
+
+    async def get_token_balance(self, token_address, account_address):
+        try:
+            if not self.w3.is_checksum_address(token_address):
+                log.error(f"Alamat token tidak valid: {token_address}")
+                return None
+            if not self.w3.is_checksum_address(account_address):
+                log.error(f"Alamat akun tidak valid: {account_address}")
+                return None
+
+            token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
+            balance = token_contract.functions.balanceOf(account_address).call()
+            decimals = token_contract.functions.decimals().call()
+            symbol = token_contract.functions.symbol().call()
+            
+            return {
+                "balance": balance,
+                "decimals": decimals,
+                "symbol": symbol,
+                "formatted": balance / (10 ** decimals)
+            }
+        except Exception as e:
+            log.error(f"Error mendapatkan saldo token untuk {token_address}: {str(e)}")
+            return None
+
+    async def perform_swap(self, private_key, token_in_address, token_out_address, amount_in_float):
+        try:
+            account = self.w3.eth.account.from_key(private_key)
+            log.step(f"Memulai swap untuk alamat: {account.address}")
+            
+            token_in_info = await self.get_token_balance(token_in_address, account.address)
+            if not token_in_info:
+                return {"success": False, "error": f"Gagal mendapatkan info token input {token_in_address}"}
+            
+            # --- MODIFIKASI TERBARU: Gunakan jumlah tetap 100 wei untuk amount_in_wei ---
+            # Hal ini didasarkan pada transaksi sukses manual.
+            amount_in_wei = 100 # Sesuai dengan transaksi manual yang berhasil (100 wei = 0.0001 USDC jika 6 desimal)
+            log.info(f"Swap {amount_in_float:.6f} {token_in_info['symbol']} ({amount_in_wei} wei) dari {token_in_address} ke {token_out_address}")
+            # --- AKHIR MODIFIKASI TERBARU ---
+
+
+            if token_in_info['balance'] < amount_in_wei:
+                log.error(f"Saldo {token_in_info['symbol']} tidak cukup untuk swap ini. Diperlukan: {amount_in_wei / (10**token_in_info['decimals']):.6f}, Tersedia: {token_in_info['formatted']:.6f}")
+                return {"success": False, "error": "Saldo token tidak cukup"}
+
+            # --- Langkah Persetujuan (Approve) ---
+            log.processing("Memulai proses persetujuan (approve) untuk token input...")
+            approval_result = await self.approve_token(account, token_in_address, self.config["swap_router"], amount_in_wei)
+            if not approval_result["success"]:
+                return {"success": False, "error": "Persetujuan token gagal"}
+            
+            nonce = approval_result["nonce"]
+            if nonce is None:
+                nonce = self.w3.eth.get_transaction_count(account.address)
+
+            # --- Persiapan Transaksi Swap (exactInputSingle sebagai inner call) ---
+            swap_router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
+            
+            deadline = int(time.time()) + 300
+
+            # --- MODIFIKASI TERBARU: Gunakan parameter dari transaksi sukses manual ---
+            # amount_out_minimum dan limit_sqrt_price diambil dari decoded input TX sukses manual
+            amount_out_minimum = 168 # Sesuai dengan transaksi manual yang berhasil
+            limit_sqrt_price = 6311681124 # Sesuai dengan transaksi manual yang berhasil
+            # --- AKHIR MODIFIKASI TERBARU ---
+            
+            log.info(f"Parameter exactInputSingle: amountIn={amount_in_wei}, amountOutMinimum={amount_out_minimum}, limitSqrtPrice={limit_sqrt_price}")
+
+            swap_params = {
+                "tokenIn": token_in_address,
+                "tokenOut": token_out_address,
+                "deployer": account.address, # Alamat deployer di TX sukses manual adalah 0x00...00
+                "recipient": account.address,
+                "deadline": deadline,
+                "amountIn": amount_in_wei,
+                "amountOutMinimum": amount_out_minimum, 
+                "limitSqrtPrice": limit_sqrt_price 
+            }
+            
+            exact_input_single_calldata = swap_router_contract.functions.exactInputSingle(swap_params).build_transaction({
+                "from": account.address,
+                "gas": 0,
+                "gasPrice": 0,
+                "nonce": 0,
+                "chainId": self.config["chain_id"]
+            })['data']
+            
+            # --- MODIFIKASI TERBARU: Perbaikan error '.hex()' ---
+            # Pastikan ini adalah objek HexBytes sebelum memanggil .hex().
+            # Ini seharusnya sudah HexBytes dari build_transaction()['data'],
+            # jika error masih terjadi, ada masalah fundamental di Web3.py atau env.
             try:
-                tx = w3.eth.get_transaction(tx_hash)
-                result = w3.eth.call({
-                    'to': tx['to'],
-                    'from': tx['from'],
-                    'value': tx['value'],
-                    'data': tx['input'],
-                    'gas': tx['gas'],
-                    'gasPrice': tx['gasPrice'],
-                    'nonce': tx['nonce']
-                }, receipt['blockNumber'] - 1)
-                console.print(f"[red]- Transaction reverted: {result.hex()}[/red]")
+                log.info(f"DEBUG: exactInputSingle calldata (hex): {exact_input_single_calldata.hex()}")
+            except AttributeError:
+                log.error(f"DEBUG: exactInputSingle calldata bukan objek HexBytes/bytes. Tipe: {type(exact_input_single_calldata)}")
+                log.info(f"DEBUG: Raw calldata: {exact_input_single_calldata}")
+                # Jika error masih terjadi, ini mungkin perlu dikonversi secara eksplisit
+                # exact_input_single_calldata = Web3.to_bytes(hexstr=exact_input_single_calldata)
+            # --- AKHIR MODIFIKASI TERBARU ---
+
+
+            # --- Bungkus dalam Multicall ---
+            multicall_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=MULTICALL_ABI)
+            
+            multicall_data = [exact_input_single_calldata]
+            
+            multicall_tx = multicall_contract.functions.multicall(multicall_data).build_transaction({
+                "from": account.address,
+                "gas": 500000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": nonce,
+                "chainId": self.config["chain_id"]
+            })
+            log.info(f"DEBUG: multicall_tx built: {multicall_tx}")
+
+            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            
+            log.processing(f"Menunggu konfirmasi swap (via multicall)... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt and receipt["status"] == 1:
+                log.success(f"Swap berhasil! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                self.transaction_history.append({
+                    "type": "swap",
+                    "tx_hash": tx_hash.hex(),
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "success",
+                    "account": account.address
+                })
+                return {"success": True, "tx_hash": tx_hash.hex()}
+            else:
+                log.error(f"Transaksi swap gagal. Receipt: {receipt}")
+                log.error(f"Coba periksa di explorer untuk detail revert reason: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                return {"success": False, "error": "Transaksi gagal"}
+                
+        except Exception as e:
+            log.error(f"Error swap: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    async def add_liquidity(self, private_key, token_a_address, token_b_address, amount_a_float, amount_b_float):
+        try:
+            account = self.w3.eth.account.from_key(private_key)
+            log.step(f"Menambahkan likuiditas untuk alamat: {account.address}")
+            
+            token_a_info = await self.get_token_balance(token_a_address, account.address)
+            token_b_info = await self.get_token_balance(token_b_address, account.address)
+
+            if not token_a_info or not token_b_info:
+                log.error("Gagal mendapatkan info token untuk menambahkan likuiditas.")
+                return {"success": False, "error": "Gagal mendapatkan info token"}
+
+            amount_a_wei = int(amount_a_float * (10**token_a_info['decimals']))
+            amount_b_wei = int(amount_b_float * (10**token_b_info['decimals']))
+            
+            log.info(f"Menambahkan {amount_a_float:.6f} {token_a_info['symbol']} dan {amount_b_float:.6f} {token_b_info['symbol']}")
+
+            if token_a_info['balance'] < amount_a_wei or token_b_info['balance'] < amount_b_wei:
+                log.error("Saldo token tidak cukup untuk menambah likuiditas.")
+                return {"success": False, "error": "Saldo token tidak cukup"}
+
+            log.processing("Memulai persetujuan (approve) untuk Token A...")
+            approval_a = await self.approve_token(account, token_a_address, self.config["liquidity_router"], amount_a_wei)
+            if not approval_a["success"]:
+                return {"success": False, "error": "Persetujuan Token A gagal"}
+            
+            log.processing("Memulai persetujuan (approve) untuk Token B...")
+            approval_b = await self.approve_token(account, token_b_address, self.config["liquidity_router"], amount_b_wei)
+            if not approval_b["success"]:
+                return {"success": False, "error": "Persetujuan Token B gagal"}
+            
+            liquidity_contract = self.w3.eth.contract(address=self.config["liquidity_router"], abi=LIQUIDITY_ROUTER_ABI)
+            
+            deadline = int(time.time()) + 300
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
+            amount_a_min = 0 
+            amount_b_min = 0
+
+            liquidity_tx = liquidity_contract.functions.addLiquidity(
+                token_a_address, token_b_address, account.address, account.address,
+                amount_a_wei, amount_b_wei, amount_a_min, amount_b_min, deadline
+            ).build_transaction({
+                "from": account.address,
+                "gas": 400000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": nonce,
+                "chainId": self.config["chain_id"]
+            })
+            
+            signed_tx = self.w3.eth.account.sign_transaction(liquidity_tx, private_key=private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            
+            log.processing(f"Menunggu konfirmasi penambahan likuiditas... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt and receipt["status"] == 1:
+                log.success(f"Likuiditas berhasil ditambahkan! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                self.transaction_history.append({
+                    "type": "liquidity",
+                    "tx_hash": tx_hash.hex(),
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "success",
+                    "account": account.address
+                })
+                return {"success": True, "tx_hash": tx_hash.hex()}
+            else:
+                log.error(f"Transaksi penambahan likuiditas gagal. Receipt: {receipt}")
+                return {"success": False, "error": "Transaksi gagal"}
+                
+        except Exception as e:
+            log.error(f"Error penambahan likuiditas: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    async def convert_to_vesuma(self, private_key, amount_float, lock_time_days):
+        try:
+            account = self.w3.eth.account.from_key(private_key)
+            log.step(f"Mengonversi SUMA ke veSUMA untuk alamat: {account.address}")
+            
+            if self.config["vesuma_address"] == Web3.to_checksum_address("0x0000000000000000000000000000000000000000"):
+                log.error("Alamat kontrak veSUMA belum diatur. Silakan perbarui di config.json.")
+                return {"success": False, "error": "Alamat veSUMA tidak valid"}
+
+            suma_info = await self.get_token_balance(self.config["suma_address"], account.address)
+            if not suma_info:
+                log.error("Gagal mendapatkan info token SUMA.")
+                return {"success": False, "error": "Gagal mendapatkan info token SUMA"}
+
+            amount_wei = int(amount_float * (10**suma_info['decimals']))
+            unlock_time = int(time.time()) + (lock_time_days * 24 * 60 * 60)
+            
+            log.info(f"Mengunci {amount_float:.6f} SUMA untuk {lock_time_days} hari.")
+
+            if suma_info['balance'] < amount_wei:
+                log.error(f"Saldo SUMA tidak cukup. Diperlukan: {amount_float:.6f}, Tersedia: {suma_info['formatted']:.6f}")
+                return {"success": False, "error": "Saldo SUMA tidak cukup"}
+
+            log.processing("Memulai persetujuan (approve) untuk token SUMA...")
+            approval_result = await self.approve_token(account, self.config["suma_address"], self.config["vesuma_address"], amount_wei)
+            if not approval_result["success"]:
+                return {"success": False, "error": "Persetujuan SUMA gagal"}
+            
+            vesuma_contract = self.w3.eth.contract(address=self.config["vesuma_address"], abi=VESUMA_ABI)
+            
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
+            lock_tx = vesuma_contract.functions.create_lock(amount_wei, unlock_time).build_transaction({
+                "from": account.address,
+                "gas": 200000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": nonce,
+                "chainId": self.config["chain_id"]
+            })
+            
+            signed_tx = self.w3.eth.account.sign_transaction(lock_tx, private_key=private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            
+            log.processing(f"Menunggu konfirmasi konversi veSUMA... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt and receipt["status"] == 1:
+                log.success(f"Konversi veSUMA berhasil! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                self.transaction_history.append({
+                    "type": "vesuma_conversion",
+                    "tx_hash": tx_hash.hex(),
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "success",
+                    "account": account.address
+                })
+                return {"success": True, "tx_hash": tx_hash.hex()}
+            else:
+                log.error(f"Konversi veSUMA gagal. Receipt: {receipt}")
+                return {"success": False, "error": "Transaksi gagal"}
+                
+        except Exception as e:
+            log.error(f"Error konversi veSUMA: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    async def stake_vesuma(self, private_key, amount_float):
+        try:
+            account = self.w3.eth.account.from_key(private_key)
+            log.step(f"Melakukan staking veSUMA untuk alamat: {account.address}")
+            
+            if self.config["staking_contract"] == Web3.to_checksum_address("0x0000000000000000000000000000000000000000"):
+                log.error("Alamat kontrak Staking belum diatur. Silakan perbarui di config.json.")
+                return {"success": False, "error": "Alamat staking tidak valid"}
+
+            amount_wei = int(amount_float * 10**18) 
+            
+            log.info(f"Melakukan staking {amount_float:.6f} veSUMA.")
+
+            staking_contract = self.w3.eth.contract(address=self.config["staking_contract"], abi=STAKING_ABI)
+            
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
+            stake_tx = staking_contract.functions.stake(amount_wei).build_transaction({
+                "from": account.address,
+                "gas": 200000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": nonce,
+                "chainId": self.config["chain_id"]
+            })
+            
+            signed_tx = self.w3.eth.account.sign_transaction(stake_tx, private_key=private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            
+            log.processing(f"Menunggu konfirmasi staking... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt and receipt["status"] == 1:
+                log.success(f"Staking veSUMA berhasil! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                self.transaction_history.append({
+                    "type": "staking",
+                    "tx_hash": tx_hash.hex(),
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "success",
+                    "account": account.address
+                })
+                return {"success": True, "tx_hash": tx_hash.hex()}
+            else:
+                log.error(f"Transaksi staking gagal. Receipt: {receipt}")
+                return {"success": False, "error": "Transaksi gagal"}
+                
+        except Exception as e:
+            log.error(f"Error staking veSUMA: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    async def vote_with_vesuma(self, private_key, gauge_address, weight):
+        try:
+            account = self.w3.eth.account.from_key(private_key)
+            log.step(f"Melakukan voting dengan veSUMA untuk alamat: {account.address}")
+            
+            if self.config["voting_contract"] == Web3.to_checksum_address("0x0000000000000000000000000000000000000000"):
+                log.error("Alamat kontrak Voting belum diatur. Silakan perbarui di config.json.")
+                return {"success": False, "error": "Alamat voting tidak valid"}
+            if not self.w3.is_checksum_address(gauge_address):
+                log.error(f"Alamat gauge tidak valid: {gauge_address}")
+                return {"success": False, "error": "Alamat gauge tidak valid"}
+
+            log.info(f"Melakukan voting untuk gauge {gauge_address} dengan weight {weight}.")
+
+            voting_contract = self.w3.eth.contract(address=self.config["voting_contract"], abi=VOTING_ABI)
+            
+            nonce = self.w3.eth.get_transaction_count(account.address)
+            
+            vote_tx = voting_contract.functions.vote(gauge_address, weight).build_transaction({
+                "from": account.address,
+                "gas": 200000,
+                "gasPrice": self.w3.eth.gas_price,
+                "nonce": nonce,
+                "chainId": self.config["chain_id"]
+            })
+            
+            signed_tx = self.w3.eth.account.sign_transaction(vote_tx, private_key=private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            
+            log.processing(f"Menunggu konfirmasi voting... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt and receipt["status"] == 1:
+                log.success(f"Voting berhasil! Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+                self.transaction_history.append({
+                    "type": "voting",
+                    "tx_hash": tx_hash.hex(),
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "success",
+                    "account": account.address
+                })
+                return {"success": True, "tx_hash": tx_hash.hex()}
+            else:
+                log.error(f"Transaksi voting gagal. Receipt: {receipt}")
+                return {"success": False, "error": "Transaksi gagal"}
+                
+        except Exception as e:
+            log.error(f"Error voting dengan veSUMA: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    async def start_automated_swaps(self):
+        if self.settings["transaction_count"] <= 0:
+            log.error("Jumlah transaksi belum diatur atau 0. Silakan atur jumlah transaksi terlebih dahulu.")
+            return
+        
+        log.info(f"Memulai automated swaps dengan {self.settings['transaction_count']} transaksi.")
+        
+        fixed_token_in_address = self.config["usdc_address"]
+        fixed_token_out_address = self.config["wcbtc_address"]
+        
+        log.info(f"Swap otomatis akan selalu dari USDC ke WCBTC dengan jumlah acak.")
+
+        for i in range(self.settings["transaction_count"]):
+            try:
+                token_in = fixed_token_in_address
+                token_out = fixed_token_out_address
+                
+                # Menggunakan jumlah 0.0001 agar perform_swap bekerja dengan amount_in_wei = 100
+                amount = 0.0001
+                
+                private_key = random.choice(self.private_keys)
+                
+                log.step(f"Transaksi {i+1}/{self.settings['transaction_count']}")
+                
+                result = await self.perform_swap(private_key, token_in, token_out, amount)
+                
+                if result["success"]:
+                    self.settings["successful_transactions"] += 1
+                    log.success(f"Swap {i+1} selesai berhasil.")
+                else:
+                    self.settings["failed_transactions"] += 1
+                    log.error(f"Swap {i+1} gagal: {result.get('error', 'Unknown error')}")
+                    
+                self.settings["total_transactions"] += 1
+                self.settings["last_transaction_time"] = datetime.now().isoformat()
+                
+                self.save_user_settings()
+                
+                delay = random.uniform(5, 15)
+                log.info(f"Menunggu {delay:.1f} detik sebelum transaksi berikutnya...")
+                await asyncio.sleep(delay)
+                
             except Exception as e:
-                console.print(f"[red]- Error decoding revert reason: {str(e)}[/red]")
-            
-    except Exception as e:
-        console.print(f"[red]- Error adding liquidity: {str(e)}[/red]")
+                log.error(f"Error dalam transaksi {i+1}: {str(e)}")
+                self.settings["failed_transactions"] += 1
+                self.settings["total_transactions"] += 1
+                self.save_user_settings()
+                continue
+        
+        log.success("Automated swaps selesai!")
+        log.info(f"Total: {self.settings['total_transactions']}, Berhasil: {self.settings['successful_transactions']}, Gagal: {self.settings['failed_transactions']}")
 
-async def convert_to_vesuma(w3, config, private_key):
-    try:
-        account = w3.eth.account.from_key(private_key)
-        console.print(f"\n[blue]=== Converting SUMA to veSUMA for: {account.address} ===[/blue]")
-        
-        # Get SUMA contract
-        suma_contract = w3.eth.contract(address=config["suma_address"], abi=ERC20_ABI)
-        
-        # Get SUMA balance
-        suma_balance = suma_contract.functions.balanceOf(account.address).call()
-        console.print(f"[green]+ SUMA Balance: {suma_balance / 10**18:.6f} SUMA[/green]")
-        
-        if suma_balance == 0:
-            console.print("[red]- No SUMA balance to convert[/red]")
-            return
-            
-        # Get lock duration
-        try:
-            weeks = int(console.input("[bold magenta]> Enter lock duration in weeks (1-208): [/bold magenta]"))
-            if weeks < 1 or weeks > 208:
-                console.print("[red]- Invalid lock duration. Must be between 1 and 208 weeks.[/red]")
-                return
-        except ValueError:
-            console.print("[red]- Invalid input. Please enter a valid number.[/red]")
-            return
-            
-        # Calculate unlock time (current time + weeks in seconds)
-        unlock_time = int(time.time()) + (weeks * 7 * 86400)
-        
-        # Approve veSUMA contract to spend SUMA
-        approval_result = await approve_token(w3, config, account, config["suma_address"], suma_balance)
-        if not approval_result["success"]:
-            console.print("[red]- SUMA approval failed. Aborting conversion.[/red]")
-            return
-            
-        # Get veSUMA contract
-        vesuma_contract = w3.eth.contract(address=config["vesuma_address"], abi=VESUMA_ABI)
-        
-        # Build create_lock transaction
-        create_lock_tx = vesuma_contract.functions.create_lock(
-            suma_balance,
-            unlock_time
-        ).build_transaction({
-            "from": account.address,
-            "gas": 500000,
-            "nonce": w3.eth.get_transaction_count(account.address),
-        })
-        
-        # Sign and send transaction
-        signed_tx = w3.eth.account.sign_transaction(create_lock_tx, private_key=account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        console.print("[yellow]> Creating veSUMA lock...[/yellow]")
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-        
-        if receipt["status"] == 1:
-            console.print(f"[green]+ SUMA locked successfully! Tx: {config['explorer']}/tx/{tx_hash.hex()}[/green]")
-            console.print(f"[green]+ Lock duration: {weeks} weeks[/green]")
-        else:
-            console.print("[red]- Lock creation transaction failed[/red]")
-            
-    except Exception as e:
-        console.print(f"[red]- Error converting SUMA to veSUMA: {str(e)}[/red]")
+    def display_menu(self):
+        print(f"\n{Colors.YELLOW}=== Menu Bot DeFi Satsuma ==={Colors.RESET}")
+        print(f"{Colors.YELLOW}1. Mulai Automated Swaps{Colors.RESET}")
+        print(f"{Colors.YELLOW}2. Atur Jumlah Transaksi{Colors.RESET}")
+        print(f"{Colors.YELLOW}3. Swap Manual{Colors.RESET}")
+        print(f"{Colors.YELLOW}4. Tambah Likuiditas{Colors.RESET}")
+        print(f"{Colors.YELLOW}5. Konversi SUMA ke veSUMA{Colors.RESET}")
+        print(f"{Colors.YELLOW}6. Staking veSUMA{Colors.RESET}")
+        print(f"{Colors.YELLOW}7. Voting dengan veSUMA{Colors.RESET}")
+        print(f"{Colors.YELLOW}8. Tampilkan Saldo{Colors.RESET}")
+        print(f"{Colors.YELLOW}9. Riwayat Transaksi{Colors.RESET}")
+        print(f"{Colors.YELLOW}10. Keluar{Colors.RESET}")
+        print(f"{Colors.YELLOW}{'='*35}{Colors.RESET}")
 
-async def stake_vesuma(w3, config, private_key):
-    try:
-        account = w3.eth.account.from_key(private_key)
-        console.print(f"\n[blue]=== Staking veSUMA for: {account.address} ===[/blue]")
-        
-        # Get veSUMA contract
-        vesuma_contract = w3.eth.contract(address=config["vesuma_address"], abi=ERC20_ABI)
-        
-        # Get veSUMA balance
-        vesuma_balance = vesuma_contract.functions.balanceOf(account.address).call()
-        console.print(f"[green]+ veSUMA Balance: {vesuma_balance / 10**18:.6f} veSUMA[/green]")
-        
-        if vesuma_balance == 0:
-            console.print("[red]- No veSUMA balance to stake[/red]")
-            return
-            
-        # Get amount to stake
+    async def handle_menu_option(self, option):
         try:
-            amount = float(console.input(f"[bold magenta]> Enter amount to stake (max {vesuma_balance / 10**18:.6f}): [/bold magenta]"))
-            amount_wei = int(amount * 10**18)
-            if amount_wei > vesuma_balance:
-                console.print("[red]- Amount exceeds veSUMA balance[/red]")
-                return
-        except ValueError:
-            console.print("[red]- Invalid input. Please enter a valid number.[/red]")
-            return
-            
-        # Approve staking contract to spend veSUMA
-        approval_result = await approve_token(w3, config, account, config["vesuma_address"], amount_wei)
-        if not approval_result["success"]:
-            console.print("[red]- veSUMA approval failed. Aborting staking.[/red]")
-            return
-            
-        # Get staking contract
-        staking_contract = w3.eth.contract(address=config["staking_contract"], abi=STAKING_ABI)
-        
-        # Build stake transaction
-        stake_tx = staking_contract.functions.stake(
-            amount_wei
-        ).build_transaction({
-            "from": account.address,
-            "gas": 500000,
-            "nonce": w3.eth.get_transaction_count(account.address),
-        })
-        
-        # Sign and send transaction
-        signed_tx = w3.eth.account.sign_transaction(stake_tx, private_key=account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        console.print("[yellow]> Staking veSUMA...[/yellow]")
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-        
-        if receipt["status"] == 1:
-            console.print(f"[green]+ veSUMA staked successfully! Tx: {config['explorer']}/tx/{tx_hash.hex()}[/green]")
-            console.print(f"[green]+ Amount staked: {amount} veSUMA[/green]")
-        else:
-            console.print("[red]- Staking transaction failed[/red]")
-            
-    except Exception as e:
-        console.print(f"[red]- Error staking veSUMA: {str(e)}[/red]")
+            if option == "1":
+                await self.start_automated_swaps()
+                
+            elif option == "2":
+                try:
+                    count_str = input("Masukkan jumlah transaksi yang diinginkan (angka > 0): ").strip()
+                    if not count_str.isdigit():
+                        log.error("Input tidak valid. Harap masukkan angka.")
+                        return True
+                    count = int(count_str)
+                    
+                    if count > 0:
+                        self.settings["transaction_count"] = count
+                        self.save_user_settings()
+                        log.success(f"Jumlah transaksi diatur menjadi {count}.")
+                    else:
+                        log.error("Jumlah transaksi harus positif.")
+                except ValueError:
+                    log.error("Input jumlah transaksi tidak valid.")
+                
+            elif option == "3":
+                print(f"\n{Colors.CYAN}=== Swap Manual ==={Colors.RESET}")
+                print("Alamat token yang tersedia (dari config.json):")
+                print(f"  USDC: {self.config['usdc_address']}")
+                print(f"  WCBTC: {self.config['wcbtc_address']}")
+                
+                token_in_input = input("Masukkan alamat token input (misal USDC atau WCBTC): ").strip()
+                token_out_input = input("Masukkan alamat token output (misal USDC atau WCBTC): ").strip()
+                
+                token_in_address = self.config['usdc_address'] if token_in_input.upper() == 'USDC' else \
+                                  (self.config['wcbtc_address'] if token_in_input.upper() == 'WCBTC' else token_in_input)
+                token_out_address = self.config['usdc_address'] if token_out_input.upper() == 'USDC' else \
+                                   (self.config['wcbtc_address'] if token_out_input.upper() == 'WCBTC' else token_out_input)
 
-async def vote_with_vesuma(w3, config, private_key):
-    try:
-        account = w3.eth.account.from_key(private_key)
-        console.print(f"\n[blue]=== Voting with veSUMA for: {account.address} ===[/blue]")
-        
-        # Get veSUMA contract
-        vesuma_contract = w3.eth.contract(address=config["vesuma_address"], abi=ERC20_ABI)
-        
-        # Get veSUMA balance
-        vesuma_balance = vesuma_contract.functions.balanceOf(account.address).call()
-        console.print(f"[green]+ veSUMA Balance: {vesuma_balance / 10**18:.6f} veSUMA[/green]")
-        
-        if vesuma_balance == 0:
-            console.print("[red]- No veSUMA balance to vote with[/red]")
-            return
+                if not self.w3.is_checksum_address(token_in_address) or not self.w3.is_checksum_address(token_out_address):
+                    log.error("Alamat token input atau output tidak valid. Harap masukkan alamat yang benar atau 'USDC'/'WCBTC'.")
+                    return True
+
+                try:
+                    amount_str = input("Masukkan jumlah token input: ").strip()
+                    if not amount_str.replace('.', '', 1).isdigit():
+                        log.error("Input jumlah tidak valid. Harap masukkan angka.")
+                        return True
+                    amount = float(amount_str)
+                    
+                    if amount > 0:
+                        result = await self.perform_swap(self.private_keys[0], Web3.to_checksum_address(token_in_address), Web3.to_checksum_address(token_out_address), amount)
+                        if result["success"]:
+                            log.success("Swap manual selesai berhasil.")
+                        else:
+                            log.error(f"Swap manual gagal: {result.get('error', 'Unknown error')}")
+                    else:
+                        log.error("Jumlah harus positif.")
+                except ValueError:
+                    log.error("Input jumlah tidak valid.")
+                
+            elif option == "4":
+                print(f"\n{Colors.CYAN}=== Tambah Likuiditas ==={Colors.RESET}")
+                print("Alamat token yang tersedia (dari config.json):")
+                print(f"  USDC: {self.config['usdc_address']}")
+                print(f"  WCBTC: {self.config['wcbtc_address']}")
+                
+                token_a_input = input("Masukkan alamat token A (misal USDC): ").strip()
+                token_b_input = input("Masukkan alamat token B (misal WCBTC): ").strip()
+
+                token_a_address = self.config['usdc_address'] if token_a_input.upper() == 'USDC' else \
+                                 (self.config['wcbtc_address'] if token_a_input.upper() == 'WCBTC' else token_a_input)
+                token_b_address = self.config['usdc_address'] if token_b_input.upper() == 'USDC' else \
+                                 (self.config['wcbtc_address'] if token_b_input.upper() == 'WCBTC' else token_b_input)
+
+                if not self.w3.is_checksum_address(token_a_address) or not self.w3.is_checksum_address(token_b_address):
+                    log.error("Alamat token A atau B tidak valid. Harap masukkan alamat yang benar atau 'USDC'/'WCBTC'.")
+                    return True
+
+                try:
+                    amount_a_str = input("Masukkan jumlah Token A: ").strip()
+                    amount_b_str = input("Masukkan jumlah Token B: ").strip()
+
+                    if not (amount_a_str.replace('.', '', 1).isdigit() and amount_b_str.replace('.', '', 1).isdigit()):
+                        log.error("Input jumlah tidak valid. Harap masukkan angka.")
+                        return True
+
+                    amount_a = float(amount_a_str)
+                    amount_b = float(amount_b_str)
+                    
+                    if amount_a > 0 and amount_b > 0:
+                        result = await self.add_liquidity(self.private_keys[0], Web3.to_checksum_address(token_a_address), Web3.to_checksum_address(token_b_address), amount_a, amount_b)
+                        if result["success"]:
+                            log.success("Likuiditas berhasil ditambahkan.")
+                        else:
+                            log.error(f"Tambah likuiditas gagal: {result.get('error', 'Unknown error')}")
+                    else:
+                        log.error("Jumlah harus positif.")
+                except ValueError:
+                    log.error("Input jumlah tidak valid.")
+                
+            elif option == "5":
+                print(f"\n{Colors.CYAN}=== Konversi SUMA ke veSUMA ==={Colors.RESET}")
+                
+                try:
+                    amount_str = input("Masukkan jumlah SUMA: ").strip()
+                    lock_days_str = input("Masukkan waktu kunci (hari): ").strip()
+
+                    if not (amount_str.replace('.', '', 1).isdigit() and lock_days_str.isdigit()):
+                        log.error("Input jumlah atau waktu kunci tidak valid. Harap masukkan angka.")
+                        return True
+
+                    amount = float(amount_str)
+                    lock_days = int(lock_days_str)
+                    
+                    if amount > 0 and lock_days > 0:
+                        result = await self.convert_to_vesuma(self.private_keys[0], amount, lock_days)
+                        if result["success"]:
+                            log.success("SUMA berhasil dikonversi ke veSUMA.")
+                        else:
+                            log.error(f"Konversi veSUMA gagal: {result.get('error', 'Unknown error')}")
+                    else:
+                        log.error("Jumlah dan waktu kunci harus positif.")
+                except ValueError:
+                    log.error("Input tidak valid.")
+                
+            elif option == "6":
+                print(f"\n{Colors.CYAN}=== Staking veSUMA ==={Colors.RESET}")
+                
+                try:
+                    amount_str = input("Masukkan jumlah veSUMA yang akan di-stake: ").strip()
+                    if not amount_str.replace('.', '', 1).isdigit():
+                        log.error("Input jumlah tidak valid. Harap masukkan angka.")
+                        return True
+                    amount = float(amount_str)
+                    
+                    if amount > 0:
+                        result = await self.stake_vesuma(self.private_keys[0], amount)
+                        if result["success"]:
+                            log.success("veSUMA berhasil di-stake.")
+                        else:
+                            log.error(f"Staking veSUMA gagal: {result.get('error', 'Unknown error')}")
+                    else:
+                        log.error("Jumlah harus positif.")
+                except ValueError:
+                    log.error("Input jumlah tidak valid.")
+                
+            elif option == "7":
+                print(f"\n{Colors.CYAN}=== Voting dengan veSUMA ==={Colors.RESET}")
+                
+                gauge_address_input = input("Masukkan alamat gauge: ").strip()
+                if not self.w3.is_checksum_address(gauge_address_input):
+                    log.error("Alamat gauge tidak valid.")
+                    return True
+
+                try:
+                    weight_str = input("Masukkan weight vote (misal 100 untuk 100%): ").strip()
+                    if not weight_str.isdigit():
+                        log.error("Input weight tidak valid. Harap masukkan angka.")
+                        return True
+                    weight = int(weight_str)
+                    
+                    if weight > 0:
+                        result = await self.vote_with_vesuma(self.private_keys[0], Web3.to_checksum_address(gauge_address_input), weight)
+                        if result["success"]:
+                            log.success("Voting berhasil.")
+                        else:
+                            log.error(f"Voting gagal: {result.get('error', 'Unknown error')}")
+                    else:
+                        log.error("Weight harus positif.")
+                except ValueError:
+                    log.error("Input weight tidak valid.")
+                
+            elif option == "8":
+                await self.show_balances()
+                
+            elif option == "9":
+                self.show_transaction_history()
+                
+            elif option == "10":
+                log.info("Keluar dari Satsuma Bot...")
+                return False
+                
+            else:
+                log.error("Pilihan tidak valid. Silakan pilih 1-10.")
             
-        # Get voting power
-        voting_power = vesuma_balance
-        console.print(f"[green]+ Voting Power: {voting_power / 10**18:.6f}[/green]")
-        
-        # Get voting weight
-        try:
-            weight = int(console.input("[bold magenta]> Enter voting weight (0-100): [/bold magenta]"))
-            if weight < 0 or weight > 100:
-                console.print("[red]- Invalid weight. Must be between 0 and 100.[/red]")
-                return
-        except ValueError:
-            console.print("[red]- Invalid input. Please enter a valid number.[/red]")
-            return
+        except Exception as e:
+            log.error(f"Error tak terduga saat menangani opsi menu: {str(e)}")
             
-        # Calculate weight in contract terms (0-10000 where 10000 = 100%)
-        weight_scaled = int(weight * 100)
+        return True
+
+    async def run(self):
+        log.banner()
+        log.success("Satsuma DeFi Bot berhasil diinisialisasi!")
         
-        # Get voting contract
-        voting_contract = w3.eth.contract(address=config["voting_contract"], abi=VOTING_ABI)
+        if self.settings["total_transactions"] > 0:
+            log.info(f"Status Terakhir: Total Transaksi: {self.settings['total_transactions']}, Berhasil: {self.settings['successful_transactions']}, Gagal: {self.settings['failed_transactions']}")
+            if self.settings["last_transaction_time"]:
+                last_time = datetime.fromisoformat(self.settings["last_transaction_time"])
+                time_ago = datetime.now() - last_time
+                log.info(f"Transaksi terakhir pada: {last_time.strftime('%Y-%m-%d %H:%M:%S')} ({str(time_ago).split('.')[0]} yang lalu)")
         
-        # Build vote transaction
-        vote_tx = voting_contract.functions.vote(
-            config["gauge_address"],
-            weight_scaled
-        ).build_transaction({
-            "from": account.address,
-            "gas": 500000,
-            "nonce": w3.eth.get_transaction_count(account.address),
-        })
-        
-        # Sign and send transaction
-        signed_tx = w3.eth.account.sign_transaction(vote_tx, private_key=account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        console.print("[yellow]> Submitting vote...[/yellow]")
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-        
-        if receipt["status"] == 1:
-            console.print(f"[green]+ Vote submitted successfully! Tx: {config['explorer']}/tx/{tx_hash.hex()}[/green]")
-            console.print(f"[green]+ Voted for gauge: {config['gauge_address']} with weight: {weight}%[/green]")
-        else:
-            console.print("[red]- Voting transaction failed[/red]")
-            
-    except Exception as e:
-        console.print(f"[red]- Error voting with veSUMA: {str(e)}[/red]")
+        while True:
+            try:
+                self.display_menu()
+                choice = input(f"{Colors.WHITE}[➤] Pilih opsi (1-10): {Colors.RESET}").strip()
+                
+                if not choice:
+                    continue
+                
+                should_continue = await self.handle_menu_option(choice)
+                if not should_continue:
+                    break
+                
+                await asyncio.sleep(1) 
+
+            except KeyboardInterrupt:
+                log.info("\nBot dihentikan oleh pengguna.")
+                break
+            except Exception as e:
+                log.error(f"Error tak terduga di loop utama: {str(e)}")
+                await asyncio.sleep(3)
 
 async def main():
-    try:
-        config = load_config()
-        w3 = initialize_provider(config)
-        private_keys = get_private_keys()
-        user_settings = load_user_settings()
-
-        while True:
-            choice = display_menu()
-            try:
-                option = int(choice)
-                if option == 8:
-                    console.print("[yellow]> Exiting Satsuma Auto Bot...[/yellow]")
-                    sys.exit(0)
-                elif option == 1:
-                    if user_settings["transaction_count"] == 0:
-                        console.print("[red]- Transaction count not set. Please set transaction count first.[/red]")
-                        continue
-                    console.print(f"[blue]=== Starting Swap Transactions ===[/blue]")
-                    user_settings["current_round"] += 1
-                    await run_transactions(w3, config, private_keys, user_settings["transaction_count"])
-                    console.print("[yellow]> Waiting 5 minutes before next round...[/yellow]")
-                    await asyncio.sleep(300)
-                elif option == 2:
-                    user_settings["transaction_count"] = await set_transaction_count()
-                elif option == 3:
-                    await manual_swap(w3, config, private_keys)
-                elif option == 4:
-                    for private_key in private_keys:
-                        await add_liquidity(w3, config, private_key)
-                elif option == 5:
-                    for private_key in private_keys:
-                        await convert_to_vesuma(w3, config, private_key)
-                elif option == 6:
-                    for private_key in private_keys:
-                        await stake_vesuma(w3, config, private_key)
-                elif option == 7:
-                    for private_key in private_keys:
-                        await vote_with_vesuma(w3, config, private_key)
-                else:
-                    console.print("[red]- Invalid option. Please select 1-8.[/red]")
-            except ValueError:
-                console.print("[red]- Invalid input. Please enter a number.[/red]")
-            except Exception as e:
-                console.print(f"[red]- Error in main loop: {str(e)}[/red]")
-                console.print("[yellow]> Waiting 5 minutes before retry...[/yellow]")
-                await asyncio.sleep(300)
-
-    except Exception as e:
-        console.print(f"[red]- Main execution error: {str(e)}[/red]")
-        sys.exit(1)
+    bot = SatsumaBot()
+    await bot.run()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        console.print("[yellow]> Program interrupted. Exiting...[/yellow]")
-        sys.exit(0)
+    asyncio.run(main())
