@@ -726,15 +726,23 @@ class SatsumaBot:
         
         log.info(f"Memulai automated swaps dengan {self.settings['transaction_count']} transaksi.")
         
-        tokens_for_swap = [self.config["usdc_address"], self.config["wcbtc_address"]]
-        
+        # --- MODIFIKASI DIMULAI DI SINI ---
+        # Ini akan memaksa swap selalu dari USDC ke WCBTC dengan jumlah tetap.
+        # Jika Anda ingin kembali ke pemilihan token/jumlah acak, hapus atau komentari 3 baris di bawah ini.
+        fixed_token_in_address = self.config["usdc_address"]  # Selalu USDC sebagai input
+        fixed_token_out_address = self.config["wcbtc_address"] # Selalu WCBTC sebagai output
+        fixed_amount_to_swap = 0.01 # Jumlah USDC yang ingin Anda swap (misal: 0.01 USDC)
+        log.info(f"Swap otomatis akan selalu dari USDC ke WCBTC dengan jumlah {fixed_amount_to_swap} USDC.")
+        # --- MODIFIKASI BERAKHIR DI SINI ---
+
         for i in range(self.settings["transaction_count"]):
             try:
-                token_in = random.choice(tokens_for_swap)
-                token_out = random.choice([t for t in tokens_for_swap if t != token_in])
+                # Gunakan nilai yang sudah di-fixed untuk token in/out dan jumlahnya
+                token_in = fixed_token_in_address
+                token_out = fixed_token_out_address
+                amount = fixed_amount_to_swap
                 
-                amount = self.generate_random_amount()
-                
+                # Private key akan tetap dipilih secara acak (jika ada banyak)
                 private_key = random.choice(self.private_keys)
                 
                 log.step(f"Transaksi {i+1}/{self.settings['transaction_count']}")
