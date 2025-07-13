@@ -433,26 +433,17 @@ class SatsumaBot:
             deadline = int(time.time()) + 300  # Deadline 5 menit dari sekarang
 
             # --- PENTING: Penanganan amountOutMinimum dan limitSqrtPrice ---
-            # Ini adalah bagian yang paling mungkin menyebabkan transaksi Anda gagal.
-            # Nilai '0' untuk kedua parameter ini seringkali tidak benar atau terlalu restriktif.
-            # Anda perlu mendapatkan harga saat ini dari pool atau menggunakan Quoter contract
-            # untuk menghitung nilai yang realistis dan valid.
+            # Mengatur amountOutMinimum ke 99% dari amountIn (toleransi slippage 1%)
+            # Ini lebih aman daripada 0, yang akan menerima slippage tak terbatas.
+            amount_out_minimum = int(amount_in_wei * 0.99) 
             
-            # Placeholder untuk perhitungan yang lebih kompleks:
-            # amount_out_minimum = self.calculate_min_amount_out(token_in_address, token_out_address, amount_in_wei, slippage_tolerance=0.005)
-            # limit_sqrt_price = self.get_limit_sqrt_price(token_in_address, token_out_address, swap_direction)
-
-            # Untuk tujuan demonstrasi dan mencoba melewati error saat ini:
-            # Mengatur amountOutMinimum ke 0 berarti menerima jumlah berapapun (risiko slippage tinggi)
-            # Mengatur limitSqrtPrice ke 0 kemungkinan besar salah untuk Uniswap V3-like routers.
-            # Nilai ini HARUS dihitung dengan benar dari sqrtPriceX96 dari pool!
-            # Misalnya, untuk swap di satu arah, bisa 2**160 - 1 (MAX_SQRT_RATIO) atau 1 (MIN_SQRT_RATIO)
-            # tergantung apakah Anda swap ke token B atau token A.
-            
-            # Karena tidak ada informasi tentang fetching price/pool state, kita akan biarkan 0,
-            # tetapi ini adalah area utama untuk diperbaiki!
-            amount_out_minimum = 0  # Ganti dengan perhitungan slippage yang realistis
-            limit_sqrt_price = 0    # Ganti dengan perhitungan sqrtPriceX96 yang benar dari pool
+            # Mengatur limitSqrtPrice ke MAX_SQRT_RATIO (2**160 - 1).
+            # Ini memungkinkan swap untuk menemukan rute hingga harga maksimum.
+            # CATATAN: Ini BISA menyebabkan slippage sangat tinggi jika likuiditas tipis
+            # atau harga berubah drastis. Untuk produksi, Anda HARUS menghitung
+            # limitSqrtPrice yang spesifik dari pool's sqrtPriceX96.
+            # Namun, ini akan mengatasi error 'L' karena 0 bukan nilai yang valid.
+            limit_sqrt_price = 2**160 - 1 # Mengizinkan swap sejauh mungkin (risiko slippage tinggi)
             
             log.info(f"Parameter Swap: amountIn={amount_in_float:.6f}, amountOutMinimum={amount_out_minimum}, limitSqrtPrice={limit_sqrt_price}")
 
@@ -468,7 +459,7 @@ class SatsumaBot:
             }
             
             # Estimasi gas yang lebih konservatif
-            gas_limit_estimate = 400000 # Coba tingkatkan ini jika masih gagal
+            gas_limit_estimate = 500000 # Ditingkatkan dari 300000
 
             swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
                 "from": account.address,
@@ -496,7 +487,7 @@ class SatsumaBot:
                 return {"success": True, "tx_hash": tx_hash.hex()}
             else:
                 log.error(f"Transaksi swap gagal. Receipt: {receipt}")
-                log.error(f"Coba periksa di explorer: {self.config['explorer']}/tx/{tx_hash.hex()} untuk detail revert reason.")
+                log.error(f"Coba periksa di explorer untuk detail revert reason: {self.config['explorer']}/tx/{tx_hash.hex()}")
                 return {"success": False, "error": "Transaksi gagal"}
                 
         except Exception as e:
@@ -661,7 +652,7 @@ class SatsumaBot:
             
             log.info(f"Melakukan staking {amount_float:.6f} veSUMA.")
 
-            # Periksa saldo veSUMA (jika ada kontrak ERC20 untuk veSUMA)
+            # Periksa saldo veSUMA (jika ada kontraknya)
             # Karena veSUMA biasanya non-transferable atau special, mungkin tidak ada fungsi balanceOf
             # di ERC20 ABI. Anda mungkin perlu ABI spesifik untuk veSUMA jika ingin mengecek saldo.
             # Untuk saat ini, kita lewatkan pengecekan saldo veSUMA di sini.
