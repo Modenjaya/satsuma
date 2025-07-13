@@ -108,10 +108,10 @@ def load_config():
         "usdc_address": Web3.to_checksum_address("0x36c16eaC6B0Ba6c50f494914ff015fCa95B7835F"),
         "wcbtc_address": Web3.to_checksum_address("0x8d0c9d1c17ae5e40fff9be350f57840e9e66cd93"),
         "suma_address": Web3.to_checksum_address("0xdE4251dd68e1aD5865b14Dd527E54018767Af58a"),
-        "vesuma_address": Web3.to_checksum_address("0x..."),  # Add actual veSUMA address
-        "voting_contract": Web3.to_checksum_address("0x..."),  # Add actual voting contract address
-        "staking_contract": Web3.to_checksum_address("0x..."),  # Add actual staking contract address
-        "gauge_address": Web3.to_checksum_address("0x...")     # Add actual gauge address
+        "vesuma_address": Web3.to_checksum_address("0x1234567890123456789012345678901234567890"),  # Add actual veSUMA address
+        "voting_contract": Web3.to_checksum_address("0x1234567890123456789012345678901234567890"),  # Add actual voting contract address
+        "staking_contract": Web3.to_checksum_address("0x1234567890123456789012345678901234567890"),  # Add actual staking contract address
+        "gauge_address": Web3.to_checksum_address("0x1234567890123456789012345678901234567890")     # Add actual gauge address
     }
 
     return config
