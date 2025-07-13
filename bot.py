@@ -129,19 +129,32 @@ def initialize_provider(config):
         sys.exit(1)
 
 # Load private keys from environment variables
+# Load private keys from environment variables
 def get_private_keys():
     private_keys = []
-    key = os.getenv("PRIVATE_KEY_1")
-    if not key:
-        console.print("[red]- No private key found in .env file[/red]")
+    # Iterate through environment variables to find all private keys
+    i = 1
+    while True:
+        key_name = f"PRIVATE_KEY_{i}"
+        key = os.getenv(key_name)
+        if key:
+            try:
+                # Validate the private key format (optional but recommended)
+                Web3().eth.account.from_key(key)
+                private_keys.append(key)
+                console.print(f"[green]+ Loaded private key for {key_name}[/green]")
+            except Exception as e:
+                console.print(f"[red]- Invalid private key for {key_name}: {str(e)}[/red]")
+        else:
+            # Stop when no more PRIVATE_KEY_X variables are found
+            break
+        i += 1
+
+    if not private_keys:
+        console.print("[red]- No private keys found in .env file (e.g., PRIVATE_KEY_1, PRIVATE_KEY_2, ...)[/red]")
         sys.exit(1)
-    try:
-        account = Web3().eth.account.from_key(key)
-        console.print(f"[green]+ Loaded 1 private key[/green]")
-        private_keys.append(key)
-    except Exception as e:
-        console.print(f"[red]- Invalid private key: {str(e)}[/red]")
-        sys.exit(1)
+        
+    console.print(f"[green]+ Successfully loaded {len(private_keys)} private key(s)[/green]")
     return private_keys
 
 # ERC20 ABI
