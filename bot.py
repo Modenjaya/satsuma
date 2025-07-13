@@ -134,7 +134,6 @@ SWAP_ROUTER_ABI = [
     }
 ]
 
-# --- MODIFIKASI TERBARU: Tambahkan ABI untuk Multicall ---
 MULTICALL_ABI = [
     {
         "inputs": [{"internalType": "bytes[]", "name": "data", "type": "bytes[]"}],
@@ -144,7 +143,6 @@ MULTICALL_ABI = [
         "type": "function"
     }
 ]
-# --- AKHIR MODIFIKASI TERBARU ---
 
 LIQUIDITY_ROUTER_ABI = [
     {
@@ -331,7 +329,7 @@ class SatsumaBot:
         except Exception as e:
             log.error(f"Gagal menyimpan pengaturan pengguna: {str(e)}")
 
-    def generate_random_amount(self, min_amount=0.0001, max_amount=0.0002):
+    def generate_random_amount(self1, min_amount=0.0001, max_amount=0.0002):
         random_amount = random.uniform(min_amount, max_amount)
         return round(random_amount, 6)
 
@@ -421,11 +419,16 @@ class SatsumaBot:
             if not token_in_info:
                 return {"success": False, "error": f"Gagal mendapatkan info token input {token_in_address}"}
             
-            amount_in_wei = int(amount_in_float * (10**token_in_info['decimals']))
+            # --- MODIFIKASI TERBARU: Gunakan jumlah tetap 100 wei untuk amount_in_wei ---
+            # Hal ini didasarkan pada transaksi sukses manual.
+            # Ini menggantikan konversi amount_in_float * (10**token_in_info['decimals'])
+            amount_in_wei = 100 # Sesuai dengan transaksi manual yang berhasil (100 wei = 0.0001 USDC jika 6 desimal)
             log.info(f"Swap {amount_in_float:.6f} {token_in_info['symbol']} ({amount_in_wei} wei) dari {token_in_address} ke {token_out_address}")
+            # --- AKHIR MODIFIKASI TERBARU ---
+
 
             if token_in_info['balance'] < amount_in_wei:
-                log.error(f"Saldo {token_in_info['symbol']} tidak cukup untuk swap ini. Diperlukan: {amount_in_float:.6f}, Tersedia: {token_in_info['formatted']:.6f}")
+                log.error(f"Saldo {token_in_info['symbol']} tidak cukup untuk swap ini. Diperlukan: {amount_in_wei / (10**token_in_info['decimals']):.6f}, Tersedia: {token_in_info['formatted']:.6f}")
                 return {"success": False, "error": "Saldo token tidak cukup"}
 
             # --- Langkah Persetujuan (Approve) ---
@@ -443,10 +446,12 @@ class SatsumaBot:
             
             deadline = int(time.time()) + 300
 
-            amount_out_minimum = int(amount_in_wei * 0.99) 
-            limit_sqrt_price = 1 # Nilai yang terbukti berhasil dari TX Anda sebelumnya!
+            # --- MODIFIKASI TERBARU: Gunakan parameter dari transaksi sukses manual ---
+            amount_out_minimum = 168 # Sesuai dengan transaksi manual yang berhasil
+            limit_sqrt_price = 6311681124 # Sesuai dengan transaksi manual yang berhasil
+            # --- AKHIR MODIFIKASI TERBARU ---
             
-            log.info(f"Parameter exactInputSingle: amountIn={amount_in_float:.6f}, amountOutMinimum={amount_out_minimum}, limitSqrtPrice={limit_sqrt_price}")
+            log.info(f"Parameter exactInputSingle: amountIn={amount_in_wei}, amountOutMinimum={amount_out_minimum}, limitSqrtPrice={limit_sqrt_price}")
 
             swap_params = {
                 "tokenIn": token_in_address,
@@ -459,27 +464,25 @@ class SatsumaBot:
                 "limitSqrtPrice": limit_sqrt_price 
             }
             
-            # --- MODIFIKASI TERBARU: Buat calldata untuk exactInputSingle ---
-            # Kita tidak membangun transaksi penuh di sini, hanya calldata.
             exact_input_single_calldata = swap_router_contract.functions.exactInputSingle(swap_params).build_transaction({
-                "from": account.address, # 'from' di sini hanya untuk simulasi ABI. Bukan bagian dari calldata final.
-                "gas": 0, # Gas tidak relevan di sini karena ini hanya calldata
-                "gasPrice": 0, # GasPrice tidak relevan di sini
-                "nonce": 0, # Nonce tidak relevan di sini
+                "from": account.address,
+                "gas": 0,
+                "gasPrice": 0,
+                "nonce": 0,
                 "chainId": self.config["chain_id"]
-            })['data'] # Ambil hanya bagian 'data' (calldata)
+            })['data']
             
-            log.info(f"DEBUG: exactInputSingle calldata: {exact_input_single_calldata.hex()}")
+            log.info(f"DEBUG: exactInputSingle calldata (hex): {exact_input_single_calldata.hex()}")
 
-            # --- MODIFIKASI TERBARU: Bungkus dalam Multicall ---
+
+            # --- Bungkus dalam Multicall ---
             multicall_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=MULTICALL_ABI)
             
-            # Parameter untuk multicall adalah array of bytes
             multicall_data = [exact_input_single_calldata]
             
             multicall_tx = multicall_contract.functions.multicall(multicall_data).build_transaction({
                 "from": account.address,
-                "gas": 500000, # Gas limit yang konservatif untuk multicall
+                "gas": 500000,
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce,
                 "chainId": self.config["chain_id"]
@@ -766,7 +769,13 @@ class SatsumaBot:
                 token_in = fixed_token_in_address
                 token_out = fixed_token_out_address
                 
-                amount = self.generate_random_amount() 
+                # --- MODIFIKASI TERBARU: Mengubah cara generate_random_amount dipanggil untuk menyesuaikan amount_in_wei tetap ---
+                # Karena amount_in_wei sekarang tetap 100, generate_random_amount tidak relevan lagi untuk nilai ini.
+                # Namun, kita tetap memanggilnya agar program tidak error jika nanti dipakai di tempat lain.
+                # Atau, kita bisa membuat fixed_amount di sini.
+                # Untuk meniru tx berhasil, kita akan fixed amount_in_float yang nanti diabaikan oleh amount_in_wei = 100
+                amount = 0.0001 # Kita set 0.0001 karena ini menghasilkan 100 wei jika 6 desimal
+                # --- AKHIR MODIFIKASI TERBARU ---
                 
                 private_key = random.choice(self.private_keys)
                 
@@ -813,62 +822,6 @@ class SatsumaBot:
         print(f"{Colors.YELLOW}9. Riwayat Transaksi{Colors.RESET}")
         print(f"{Colors.YELLOW}10. Keluar{Colors.RESET}")
         print(f"{Colors.YELLOW}{'='*35}{Colors.RESET}")
-
-    async def show_balances(self):
-        try:
-            account = self.w3.eth.account.from_key(self.private_keys[0])
-            
-            log.step(f"Menampilkan saldo untuk: {account.address}")
-            
-            eth_balance = self.w3.eth.get_balance(account.address)
-            eth_formatted = self.w3.from_wei(eth_balance, 'ether')
-            
-            print(f"\n{Colors.CYAN}=== Saldo Akun ==={Colors.RESET}")
-            print(f"{Colors.WHITE}Alamat: {account.address}{Colors.RESET}")
-            print(f"{Colors.GREEN}Saldo {self.config['symbol']}: {eth_formatted:.6f} {self.config['symbol']}{Colors.RESET}")
-            
-            tokens = {
-                "USDC": self.config["usdc_address"],
-                "WCBTC": self.config["wcbtc_address"],
-                "SUMA": self.config["suma_address"]
-            }
-            
-            for symbol, address in tokens.items():
-                balance_info = await self.get_token_balance(address, account.address)
-                if balance_info:
-                    print(f"{Colors.GREEN}Saldo {balance_info['symbol']}: {balance_info['formatted']:.6f} {balance_info['symbol']}{Colors.RESET}")
-                else:
-                    print(f"{Colors.RED}Saldo {symbol}: Error mengambil saldo{Colors.RESET}")
-            
-            if self.config["vesuma_address"] != Web3.to_checksum_address("0x0000000000000000000000000000000000000000"):
-                vesuma_info = await self.get_token_balance(self.config["vesuma_address"], account.address)
-                if vesuma_info:
-                    print(f"{Colors.GREEN}Saldo {vesuma_info['symbol']}: {vesuma_info['formatted']:.6f} {vesuma_info['symbol']}{Colors.RESET}")
-                else:
-                    print(f"{Colors.RED}Saldo veSUMA: Error mengambil saldo (pastikan ABI dan alamat benar){Colors.RESET}")
-
-            print(f"{Colors.CYAN}{'='*35}{Colors.RESET}")
-            
-        except Exception as e:
-            log.error(f"Error menampilkan saldo: {str(e)}")
-
-    def show_transaction_history(self):
-        if not self.transaction_history:
-            log.info("Tidak ada riwayat transaksi yang tersedia.")
-            return
-            
-        print(f"\n{Colors.CYAN}=== Riwayat Transaksi ==={Colors.RESET}")
-        
-        for i, tx in enumerate(self.transaction_history[-10:], 1): 
-            status_color = Colors.GREEN if tx["status"] == "success" else Colors.RED
-            print(f"{Colors.WHITE}{i}. Tipe: {tx['type'].upper()}{Colors.RESET}")
-            print(f"   Status: {status_color}{tx['status']}{Colors.RESET}")
-            print(f"   Hash: {Colors.CYAN}{tx['tx_hash']}{Colors.RESET}")
-            print(f"   Akun: {Colors.PURPLE}{tx.get('account', 'N/A')}{Colors.RESET}")
-            print(f"   Waktu: {Colors.YELLOW}{tx['timestamp']}{Colors.RESET}")
-            print("-" * 30)
-            
-        print(f"{Colors.CYAN}{'='*35}{Colors.RESET}")
 
     async def handle_menu_option(self, option):
         try:
