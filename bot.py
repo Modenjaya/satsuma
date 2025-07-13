@@ -134,6 +134,18 @@ SWAP_ROUTER_ABI = [
     }
 ]
 
+# --- MODIFIKASI TERBARU: Tambahkan ABI untuk Multicall ---
+MULTICALL_ABI = [
+    {
+        "inputs": [{"internalType": "bytes[]", "name": "data", "type": "bytes[]"}],
+        "name": "multicall",
+        "outputs": [{"internalType": "bytes[]", "name": "results", "type": "bytes[]"}],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]
+# --- AKHIR MODIFIKASI TERBARU ---
+
 LIQUIDITY_ROUTER_ABI = [
     {
         "inputs": [
@@ -332,14 +344,10 @@ class SatsumaBot:
                 log.error(f"Alamat spender tidak valid: {spender_address}")
                 return {"success": False, "nonce": None}
 
-            # --- MODIFIKASI TERBARU: Debugging 'to' address ---
             log.info(f"DEBUG: Mempersiapkan persetujuan. Token (akan di-approve): {token_address}, Spender (akan menerima izin): {spender_address}")
             token_contract = self.w3.eth.contract(address=token_address, abi=ERC20_ABI)
             
-            # DEBUG: Cek alamat kontrak yang sebenarnya akan menjadi tujuan transaksi approve
-            # Ini seharusnya alamat kontrak token (misal USDC), BUKAN alamat swap_router.
             log.info(f"DEBUG: 'to' address yang diharapkan untuk approve tx: {token_contract.address}")
-            # --- AKHIR MODIFIKASI TERBARU ---
 
             nonce = self.w3.eth.get_transaction_count(account.address)
             
@@ -360,9 +368,7 @@ class SatsumaBot:
                 "chainId": self.config["chain_id"]
             })
             
-            # --- MODIFIKASI TERBARU: Debugging data transaksi sebelum ditandatangani ---
             log.info(f"DEBUG: approve_tx built data: {approve_tx['data'].hex()}")
-            # --- AKHIR MODIFIKASI TERBARU ---
 
             signed_tx = self.w3.eth.account.sign_transaction(approve_tx, private_key=account.key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
@@ -424,8 +430,6 @@ class SatsumaBot:
 
             # --- Langkah Persetujuan (Approve) ---
             log.processing("Memulai proses persetujuan (approve) untuk token input...")
-            # token_in_address adalah alamat token yang akan di-approve (misal USDC)
-            # self.config["swap_router"] adalah alamat spender (swap router)
             approval_result = await self.approve_token(account, token_in_address, self.config["swap_router"], amount_in_wei)
             if not approval_result["success"]:
                 return {"success": False, "error": "Persetujuan token gagal"}
@@ -434,15 +438,15 @@ class SatsumaBot:
             if nonce is None:
                 nonce = self.w3.eth.get_transaction_count(account.address)
 
-            # --- Persiapan Transaksi Swap ---
-            swap_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
+            # --- Persiapan Transaksi Swap (exactInputSingle sebagai inner call) ---
+            swap_router_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=SWAP_ROUTER_ABI)
             
             deadline = int(time.time()) + 300
 
             amount_out_minimum = int(amount_in_wei * 0.99) 
             limit_sqrt_price = 1 # Nilai yang terbukti berhasil dari TX Anda sebelumnya!
             
-            log.info(f"Parameter Swap: amountIn={amount_in_float:.6f}, amountOutMinimum={amount_out_minimum}, limitSqrtPrice={limit_sqrt_price}")
+            log.info(f"Parameter exactInputSingle: amountIn={amount_in_float:.6f}, amountOutMinimum={amount_out_minimum}, limitSqrtPrice={limit_sqrt_price}")
 
             swap_params = {
                 "tokenIn": token_in_address,
@@ -455,20 +459,37 @@ class SatsumaBot:
                 "limitSqrtPrice": limit_sqrt_price 
             }
             
-            gas_limit_estimate = 500000
+            # --- MODIFIKASI TERBARU: Buat calldata untuk exactInputSingle ---
+            # Kita tidak membangun transaksi penuh di sini, hanya calldata.
+            exact_input_single_calldata = swap_router_contract.functions.exactInputSingle(swap_params).build_transaction({
+                "from": account.address, # 'from' di sini hanya untuk simulasi ABI. Bukan bagian dari calldata final.
+                "gas": 0, # Gas tidak relevan di sini karena ini hanya calldata
+                "gasPrice": 0, # GasPrice tidak relevan di sini
+                "nonce": 0, # Nonce tidak relevan di sini
+                "chainId": self.config["chain_id"]
+            })['data'] # Ambil hanya bagian 'data' (calldata)
+            
+            log.info(f"DEBUG: exactInputSingle calldata: {exact_input_single_calldata.hex()}")
 
-            swap_tx = swap_contract.functions.exactInputSingle(swap_params).build_transaction({
+            # --- MODIFIKASI TERBARU: Bungkus dalam Multicall ---
+            multicall_contract = self.w3.eth.contract(address=self.config["swap_router"], abi=MULTICALL_ABI)
+            
+            # Parameter untuk multicall adalah array of bytes
+            multicall_data = [exact_input_single_calldata]
+            
+            multicall_tx = multicall_contract.functions.multicall(multicall_data).build_transaction({
                 "from": account.address,
-                "gas": gas_limit_estimate,
+                "gas": 500000, # Gas limit yang konservatif untuk multicall
                 "gasPrice": self.w3.eth.gas_price,
                 "nonce": nonce,
                 "chainId": self.config["chain_id"]
             })
-            
-            signed_tx = self.w3.eth.account.sign_transaction(swap_tx, private_key=private_key)
+            log.info(f"DEBUG: multicall_tx built: {multicall_tx}")
+
+            signed_tx = self.w3.eth.account.sign_transaction(multicall_tx, private_key=private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
-            log.processing(f"Menunggu konfirmasi swap... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
+            log.processing(f"Menunggu konfirmasi swap (via multicall)... Tx: {self.config['explorer']}/tx/{tx_hash.hex()}")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
             
             if receipt and receipt["status"] == 1:
@@ -734,13 +755,11 @@ class SatsumaBot:
         
         log.info(f"Memulai automated swaps dengan {self.settings['transaction_count']} transaksi.")
         
-        # --- MODIFIKASI TERBARU: Memaksa arah swap dan menggunakan jumlah acak ---
         # Memaksa swap selalu dari USDC ke WCBTC
-        fixed_token_in_address = self.config["usdc_address"]  # Selalu USDC sebagai input
-        fixed_token_out_address = self.config["wcbtc_address"] # Selalu WCBTC sebagai output
+        fixed_token_in_address = self.config["usdc_address"]
+        fixed_token_out_address = self.config["wcbtc_address"]
         
         log.info(f"Swap otomatis akan selalu dari USDC ke WCBTC dengan jumlah acak.")
-        # --- AKHIR MODIFIKASI TERBARU ---
 
         for i in range(self.settings["transaction_count"]):
             try:
